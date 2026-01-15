@@ -1,0 +1,47 @@
+# .NET Framework / C# Project
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.tmp
+*.bak
+*.log
+
+# BepInEx and Harmony Mod Specific
+# Logs
+LogOutput.log
+*.log
+
+# Configuration files (may contain sensitive data)
+config/
+plugins/
+
+# Decompiled game assemblies
+.Decompiled/
+
+# Build artifacts
+*.dll
+*.pdb
+*.exe
+*.config
+
+# IDE and Editor files
+.vscode/
+.continue/
+
+# Temporary files
+Thumbs.db
+.DS_Store
+
+# NuGet packages
+packages/
+
+# Unity-specific (if any cross-over)
+Library/
+Temp/
+*.unitypackage
+
+# Mod-specific outputs
+Release/
+Debug/
