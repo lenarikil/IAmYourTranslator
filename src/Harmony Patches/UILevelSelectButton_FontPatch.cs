@@ -1,9 +1,8 @@
 using HarmonyLib;
 using TMPro;
-using UnityEngine;
-using System.IO;
+using System.Collections.Generic;
 using static IAmYourTranslator.CommonFunctions;
-using BepInEx;
+using IAmYourTranslator.json;
 
 namespace IAmYourTranslator.Harmony_Patches
 {
@@ -12,7 +11,7 @@ namespace IAmYourTranslator.Harmony_Patches
     {
     // fallback path is taken from Plugin.GlobalFontPath when needed
         private static readonly System.Reflection.FieldInfo nameTextField = AccessTools.Field(typeof(UILevelSelectButton), "nameText");
-        
+
 
         [HarmonyPostfix]
         public static void Postfix(UILevelSelectButton __instance)
@@ -26,6 +25,17 @@ namespace IAmYourTranslator.Harmony_Patches
                 TMP_Text nameText = nameTextField?.GetValue(__instance) as TMP_Text;
                 if (nameText == null)
                     return;
+
+                Dictionary<string, string> levelNames = null;
+                if (LanguageManager.IsLoaded)
+                {
+                    levelNames = LanguageManager.CurrentLanguage.levelNames;
+                    if (levelNames == null)
+                        levelNames = LanguageManager.CurrentLanguage.levelNames = new Dictionary<string, string>();
+                }
+
+                string originalName = ResolveOriginalTranslationKey(nameText.text, levelNames);
+                TranslateTextAndSaveIfMissing(nameText, originalName, levelNames, "[UILevelSelectButton]");
 
                 // If global font is set — use it directly (fast path)
                 if (Plugin.GlobalTMPFont != null)

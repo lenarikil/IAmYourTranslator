@@ -4,6 +4,7 @@ using System.IO;
 using Sounds;
 using BepInEx;
 using static IAmYourTranslator.CommonFunctions;
+using IAmYourTranslator.json;
 
 namespace IAmYourTranslator.HarmonyPatches
 {
@@ -24,46 +25,37 @@ namespace IAmYourTranslator.HarmonyPatches
                 if (source == null || source.clip == null)
                     return;
 
+                if (!Plugin.EnableAudioReplacementEntry.Value || LanguageManager.CurrentSummary == null)
+                    return;
+
                 string clipName = source.clip.name;
                 if (string.IsNullOrEmpty(clipName))
                     return;
 
                 // The folder where replaced audio is stored
-                string audioFolder = Path.Combine(Paths.ConfigPath, "IAmYourTranslator", "audio");
-                string wavPath = Path.Combine(audioFolder, SanitizeFileName(clipName) + ".wav");
-
-                if (!File.Exists(wavPath))
-                {
-                    //Logging.Warn($"[SoundManagerPatch] No replacement for '{clipName}'");
-                    return; // We don't replace anything if the file doesn't exist
-                }
+                string audioFolder = LanguageManager.CurrentSummary.Paths.AudioDir;
+                if (!AudioClipReplacer.TryFindReplacementAudioFile(audioFolder, clipName, out string replacementPath))
+                    return;
 
 
                 // Loading new AudioClip
-                AudioClip newClip = AudioClipReplacer.LoadAudioClip(wavPath);
+                AudioClip newClip = AudioClipReplacer.LoadAudioClip(replacementPath);
                 if (newClip == null)
                 {
-                    Logging.Warn($"[SoundManagerPatch] Failed to load '{wavPath}' for '{clipName}'");
+                    Logging.Warn($"[SoundManagerPatch] Failed to load '{replacementPath}' for '{clipName}'");
                     return;
                 }
 
                 // Replacing clip before Play()
+                Plugin.RegisterReplacedAudioSource(source, source.clip);
                 source.clip = newClip;
                 source.time = 0f;
-                Logging.Info($"[SoundManagerPatch] Replaced SoundObject: {clipName} -> {newClip.name}");
+                Logging.Info($"[SoundManagerPatch] Replaced SoundObject: {clipName} -> {newClip.name} ({Path.GetFileName(replacementPath)})");
             }
             catch (System.Exception ex)
             {
                 Logging.Error($"[SoundManagerPatch] Error replacing SoundObject: {ex}");
             }
-        }
-
-        // Utility for safe names
-        private static string SanitizeFileName(string name)
-        {
-            foreach (char c in Path.GetInvalidFileNameChars())
-                name = name.Replace(c, '_');
-            return name;
         }
     }
 }

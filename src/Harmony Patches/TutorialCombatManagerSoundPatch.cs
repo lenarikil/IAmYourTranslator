@@ -3,6 +3,7 @@ using HarmonyLib;
 using UnityEngine;
 using Sounds;
 using static IAmYourTranslator.CommonFunctions;
+using IAmYourTranslator.json;
 using BepInEx;
 using System.IO;
 
@@ -20,8 +21,9 @@ namespace IAmYourTranslator.HarmonyPatches
                     return;
 
                 // Paths to custom sounds
-                string customOpeningPath = Path.Combine(Paths.ConfigPath, "IAmYourTranslator", "audio", "6 - arguing soldiers2.wav");
-                string customHesHerePath = Path.Combine(Paths.ConfigPath, "IAmYourTranslator", "audio", "8 - he's here.wav");
+                string baseAudio = LanguageManager.CurrentSummary?.Paths?.AudioDir ?? Path.Combine(Paths.ConfigPath, "IAmYourTranslator", "audio");
+                string customOpeningPath = Path.Combine(baseAudio, "6 - arguing soldiers2.wav");
+                string customHesHerePath = Path.Combine(baseAudio, "8 - he's here.wav");
 
                 // Getting private SoundObject fields
                 var fieldOpening = AccessTools.Field(typeof(TutorialCombatManager), "SFXOpeningDialogue");

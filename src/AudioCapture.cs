@@ -22,6 +22,7 @@ namespace IAmYourTranslator
         Process ffmpegProc;
         volatile bool writerRunning;
         volatile bool requestedStop;
+        private readonly object ffmpegLock = new object();
 
         int captureChannels;
         int inputSampleRate;
@@ -94,14 +95,27 @@ namespace IAmYourTranslator
             {
                 Logging.Error($"[AudioCapture] Failed to start ffmpeg: {e}");
                 writerRunning = false;
+                requestedStop = true;
             }
         }
 
         void WriterLoop()
         {
+            Process localFfmpegProc = null;
+            lock (ffmpegLock)
+            {
+                localFfmpegProc = ffmpegProc;
+            }
+
+            if (localFfmpegProc == null)
+            {
+                writerRunning = false;
+                return;
+            }
+
             try
             {
-                using (var stdin = ffmpegProc.StandardInput.BaseStream)
+                using (var stdin = localFfmpegProc.StandardInput.BaseStream)
                 {
                     while (!requestedStop || !queue.IsEmpty)
                     {
@@ -140,12 +154,15 @@ namespace IAmYourTranslator
                 // close stdin (if process is alive)
                 try
                 {
-                    if (ffmpegProc != null && !ffmpegProc.HasExited)
+                    lock (ffmpegLock)
                     {
-                        // close standard input so ffmpeg finishes encoding
-                        try { ffmpegProc.StandardInput.Close(); } catch { }
-                        // wait for a reasonable time
-                        ffmpegProc.WaitForExit(5000);
+                        if (ffmpegProc != null && !ffmpegProc.HasExited)
+                        {
+                            // close standard input so ffmpeg finishes encoding
+                            try { ffmpegProc.StandardInput.Close(); } catch { }
+                            // wait for a reasonable time
+                            ffmpegProc.WaitForExit(5000);
+                        }
                     }
                 }
                 catch (Exception e)
@@ -170,18 +187,21 @@ namespace IAmYourTranslator
             }
 
             // If the process is still alive -  wait a little longer.
-            try
+            lock (ffmpegLock)
             {
-                if (ffmpegProc != null && !ffmpegProc.HasExited)
+                try
                 {
-                    ffmpegProc.WaitForExit(2000);
+                    if (ffmpegProc != null && !ffmpegProc.HasExited)
+                    {
+                        ffmpegProc.WaitForExit(2000);
+                    }
                 }
-            }
-            catch { }
+                catch { }
 
-            // clear
-            try { ffmpegProc?.Dispose(); } catch { }
-            ffmpegProc = null;
+                // clear
+                try { ffmpegProc?.Dispose(); } catch { }
+                ffmpegProc = null;
+            }
             writerThread = null;
             Logging.Warn("[AudioCapture] Stopped capture.");
         }
@@ -189,17 +209,37 @@ namespace IAmYourTranslator
         // Copy the float[] block from the audio and put it in the queue as a f32le
         void OnAudioFilterRead(float[] data, int channels)
         {
-            if (ffmpegProc == null || ffmpegProc.HasExited) return;
+            if (!writerRunning) return;
+            
+            Process localFfmpegProc;
+            lock (ffmpegLock)
+            {
+                localFfmpegProc = ffmpegProc;
+            }
+            
+            if (localFfmpegProc == null || localFfmpegProc.HasExited)
+            {
+                requestedStop = true;
+                return;
+            }
 
-            // copying the array (so as not to depend on overused buffers)
-            var local = new float[data.Length];
-            Array.Copy(data, local, data.Length);
+            try
+            {
+                // copying the array (so as not to depend on overused buffers)
+                var local = new float[data.Length];
+                Array.Copy(data, local, data.Length);
 
-            // converting float[] -> bytes (f32 little-endian)
-            byte[] bytes = new byte[local.Length * 4];
-            Buffer.BlockCopy(local, 0, bytes, 0, bytes.Length);
+                // converting float[] -> bytes (f32 little-endian)
+                byte[] bytes = new byte[local.Length * 4];
+                Buffer.BlockCopy(local, 0, bytes, 0, bytes.Length);
 
-            queue.Enqueue(bytes);
+                queue.Enqueue(bytes);
+            }
+            catch (Exception e)
+            {
+                Logging.Error($"[AudioCapture] OnAudioFilterRead error: {e}");
+                requestedStop = true;
+            }
         }
 
         void Update()
@@ -224,7 +264,18 @@ namespace IAmYourTranslator
                 writerThread?.Join(500);
             }
             catch { }
-            try { ffmpegProc?.Kill(); } catch { }
+            
+            lock (ffmpegLock)
+            {
+                try
+                {
+                    if (ffmpegProc != null && !ffmpegProc.HasExited)
+                    {
+                        try { ffmpegProc.Kill(); } catch { }
+                    }
+                }
+                catch { }
+            }
         }
 
         private string FindFfmpeg()

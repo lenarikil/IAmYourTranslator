@@ -12,6 +12,7 @@ namespace IAmYourTranslator.Harmony_Patches
     [HarmonyPatch(typeof(FleeceTextSetter))]
     public class FleeceTextSetterPatch
     {
+        private static readonly Dictionary<TMP_Text, string> OriginalTextByComponent = new Dictionary<TMP_Text, string>();
 
         [HarmonyPostfix]
         [HarmonyPatch("SetText")]
@@ -39,6 +40,64 @@ namespace IAmYourTranslator.Harmony_Patches
             }
         }
 
+        public static int RefreshAll(bool skipTranslatorMenu = true)
+        {
+            int refreshed = 0;
+            try
+            {
+                var allSetters = CommonFunctions.FindObjectsOfTypeCached<FleeceTextSetter>(true);
+                if (allSetters == null || allSetters.Length == 0)
+                    return 0;
+
+                foreach (var setter in allSetters)
+                {
+                    if (setter == null)
+                        continue;
+
+                    if (skipTranslatorMenu && setter.GetComponentInParent<TranslatorSettingsMenu>(true) != null)
+                        continue;
+
+                    SafeTranslate(setter);
+                    refreshed++;
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.Warn($"[FleeceTextSetterPatch] RefreshAll failed: {e.Message}");
+            }
+
+            return refreshed;
+        }
+
+        private static void CleanupOriginalTextCache()
+        {
+            var dead = new List<TMP_Text>();
+            foreach (var kv in OriginalTextByComponent)
+            {
+                if (kv.Key == null)
+                    dead.Add(kv.Key);
+            }
+
+            foreach (var key in dead)
+                OriginalTextByComponent.Remove(key);
+        }
+
+        private static string ResolveOriginalText(TMP_Text tmp)
+        {
+            if (tmp == null)
+                return null;
+
+            if (OriginalTextByComponent.TryGetValue(tmp, out var original) && !string.IsNullOrEmpty(original))
+                return original;
+
+            var current = tmp.text;
+            if (string.IsNullOrEmpty(current))
+                return null;
+
+            OriginalTextByComponent[tmp] = current;
+            return current;
+        }
+
         // EveryCall mode — translate every time
         private static void TranslateEveryCall(FleeceTextSetter instance)
         {
@@ -47,9 +106,25 @@ namespace IAmYourTranslator.Harmony_Patches
             TMP_Text[] texts = GetTextsArray(instance);
             if (texts == null || texts.Length == 0) return;
 
+            CleanupOriginalTextCache();
+
+            // Original mode: restore previously captured source text.
             // Use hardCoded translations from LanguageManager
             if (!LanguageManager.IsLoaded)
             {
+                foreach (TMP_Text tmp in texts)
+                {
+                    if (tmp == null)
+                        continue;
+
+                    if (!OriginalTextByComponent.TryGetValue(tmp, out var originalText) || string.IsNullOrEmpty(originalText))
+                        continue;
+
+                    if (tmp.text != originalText)
+                        tmp.text = originalText;
+                    
+                    // No font replacement in original mode
+                }
                 return; // no language loaded
             }
 
@@ -59,41 +134,54 @@ namespace IAmYourTranslator.Harmony_Patches
                 hardCodedDict = LanguageManager.CurrentLanguage.hardCoded = new Dictionary<string, string>();
             }
 
+            bool addedMissingKeys = false;
             foreach (TMP_Text tmp in texts)
             {
                 if (tmp == null) continue;
 
-                string originalText = tmp.text;
+                string originalText = ResolveOriginalText(tmp);
                 if (string.IsNullOrEmpty(originalText)) continue;
 
-                // Try to get translation, if not found use original
-                string newText = hardCodedDict.TryGetValue(originalText, out string translated) ? translated : originalText;
+                string newText = originalText;
+                if (hardCodedDict.TryGetValue(originalText, out string translated) && !string.IsNullOrEmpty(translated))
+                {
+                    newText = translated;
+                }
+                else if (!hardCodedDict.ContainsKey(originalText))
+                {
+                    hardCodedDict[originalText] = originalText;
+                    addedMissingKeys = true;
+                }
 
                 if (newText != originalText)
                 {
-                    tmp.text = newText;
+                    bool changedText = !string.Equals(tmp.text, newText, StringComparison.Ordinal);
+                    if (changedText)
+                        tmp.text = newText;
+
                     var tmpFont = TMPFontReplacer.GetCachedFont(Plugin.GlobalFontPath);
                     if (tmpFont != null)
                     {
-                        CommonFunctions.TMPFontReplacer.ApplyFontToTMP(tmp, tmpFont);
+                        if (!Equals(tmp.font, tmpFont))
+                            CommonFunctions.TMPFontReplacer.ApplyFontToTMP(tmp, tmpFont);
                     }
                     else
                     {
                         Logging.Warn("[Translator EveryCall] Failed to load custom font!");
                     }
-                    Logging.Info($"[Translator EveryCall] '{instance.name}': '{originalText}' → '{newText}'");
+
+                    if (changedText)
+                        Logging.Info($"[Translator EveryCall] '{instance.name}': '{originalText}' → '{newText}'");
                 }
                 else
                 {
-                    // Add missing key if not exists
-                    if (!hardCodedDict.ContainsKey(originalText))
-                    {
-                        hardCodedDict[originalText] = originalText;
-                        LanguageManager.SaveCurrentLanguage();
-                        Logging.Info($"[Translator EveryCall] Added missing hardCoded key: '{originalText}'");
-                    }
+                    if (tmp.text != originalText)
+                        tmp.text = originalText;
                 }
             }
+
+            if (addedMissingKeys)
+                LanguageManager.SaveCurrentLanguage();
         }
 
         private static TMP_Text[] GetTextsArray(FleeceTextSetter instance)

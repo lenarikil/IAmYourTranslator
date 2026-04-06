@@ -5,6 +5,21 @@ namespace IAmYourTranslator.json
     [System.Serializable]
     public class JsonFormat
     {
+        [System.Serializable]
+        public class Metadata
+        {
+            public string langName { get; set; }
+            public string langAuthor { get; set; }
+            public string langVersion { get; set; }
+            public string langDisplayName { get; set; }
+            public string minimumModVersion { get; set; }
+            // Optional font file inside fonts/ folder of the language
+            public string fontFile { get; set; }
+        }
+
+        // General metadata used for UI and compatibility checks
+        public Metadata metadata { get; set; } = new Metadata();
+
         // Here we store translations for timings (for cutscenes)
         public Dictionary<string, List<string>> timings = new Dictionary<string, List<string>>();
 
@@ -24,10 +39,16 @@ namespace IAmYourTranslator.json
         public Dictionary<string, string> bonusObjectives { get; set; } = new Dictionary<string, string>();
         // Translations for main objectives (HUD / main UI)
         public Dictionary<string, string> mainObjectives { get; set; } = new Dictionary<string, string>();
+        // Translations for HUD notification pop-ups (HUDNotificationPopUp)
+        public Dictionary<string, string> hudNotificationPopups { get; set; } = new Dictionary<string, string>();
+        // Translations for HUD interaction prompts (HUDInteractionPrompt)
+        public Dictionary<string, string> interactionPrompts { get; set; } = new Dictionary<string, string>();
         // Translations of level failure screen headers (UILevelFailed.headerText)
         public Dictionary<string, string> levelFailedHeaders { get; set; } = new Dictionary<string, string>();
         // Translations related to the category slide in level select (UILevelSelectCategorySlide)
         public Dictionary<string, string> categorySlideTexts { get; set; } = new Dictionary<string, string>();
+        // Translations of headers in category stats (UILevelSelectCategoryStat)
+        public Dictionary<string, string> categoryStatHeaders { get; set; } = new Dictionary<string, string>();
     // Translations of level lock descriptions (UILevelSelectFeature.lockedDescription)
     public Dictionary<string, string> lockedDescriptions { get; set; } = new Dictionary<string, string>();
         // Translations for settings (UISettingsTab)
@@ -43,6 +64,8 @@ namespace IAmYourTranslator.json
 
         // Translations of level overview screen elements (Start, End)
         public Dictionary<string, string> overviewScreen { get; set; } = new Dictionary<string, string>();
+        // Translations for UI hints
+        public Dictionary<string, string> Hints { get; set; } = new Dictionary<string, string>();
         // Translations of hardcoded texts (FleeceTextSetter)
         public Dictionary<string, string> hardCoded { get; set; } = new Dictionary<string, string>();
     }

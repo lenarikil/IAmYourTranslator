@@ -1,7 +1,9 @@
 using System;
 using HarmonyLib;
 using UnityEngine;
+using TMPro;
 using static IAmYourTranslator.CommonFunctions;
+using IAmYourTranslator.json;
 using System.IO;
 using BepInEx;
 using System.Reflection;
@@ -25,26 +27,47 @@ namespace IAmYourTranslator.Harmony_Patches
                 Logging.Info($"  Original text: \"{dialogue}\"");
                 Logging.Info($"  AudioClip: {clipName}");
 
-                switch (clipName)
+                // Use language file for translations
+                if (LanguageManager.IsLoaded && LanguageManager.CurrentLanguage?.tutorialPrompts != null)
                 {
-                    case "2 - sprinting":
-                        dialogue = "I was running through the forest. I was making my way through the underbrush, as if I were a child again, not thinking about the mess or that later I might have to mend my pants.";
-                        break;
+                    string translated;
+                    if (LanguageManager.CurrentLanguage.tutorialPrompts.TryGetValue(clipName, out translated) && !string.IsNullOrEmpty(translated))
+                    {
+                        dialogue = translated;
+                        Logging.Info($"  Translated from file: \"{dialogue}\"");
+                    }
+                    else
+                    {
+                        // Add missing key
+                        LanguageManager.CurrentLanguage.tutorialPrompts[clipName] = dialogue;
+                        LanguageManager.SaveCurrentLanguage();
+                        Logging.Warn($"  Added missing tutorial dialogue key: '{clipName}'");
+                    }
+                }
+                else
+                {
+                    // Original mode - use hardcoded translations for backward compatibility
+                    switch (clipName)
+                    {
+                        case "2 - sprinting":
+                            dialogue = "I was running through the forest. I was making my way through the underbrush, as if I were a child again, not thinking about the mess or that later I might have to mend my pants.";
+                            break;
 
-                    case "3 - leaping":
-                        dialogue = "Leaping over trees.";
-                        break;
+                        case "3 - leaping":
+                            dialogue = "Leaping over trees.";
+                            break;
 
-                    case "4 - best days of the coi":
-                        dialogue = "This reminded me of the best days at the ISP. When I felt like everything was going well for me.";
-                        break;
+                        case "4 - best days of the coi":
+                            dialogue = "This reminded me of the best days at the ISP. When I felt like everything was going well for me.";
+                            break;
 
-                    default:
-                        Logging.Warn($"[TutorialDialogueManagerPatch] No translation found for '{clipName}'");
-                        break;
+                        default:
+                            Logging.Warn($"[TutorialDialogueManagerPatch] No translation found for '{clipName}'");
+                            break;
+                    }
                 }
 
-                Logging.Info($"  Translated text: \"{dialogue}\"");
+                Logging.Info($"  Final text: \"{dialogue}\"");
             }
             catch (Exception e)
             {
@@ -53,7 +76,7 @@ namespace IAmYourTranslator.Harmony_Patches
         }
 
         // ==========================
-        // POSTFIX: audio replacement
+        // POSTFIX: audio replacement + font application
         // ==========================
         [HarmonyPostfix]
         [HarmonyPatch("TriggerDialogue")]
@@ -61,6 +84,21 @@ namespace IAmYourTranslator.Harmony_Patches
         {
             try
             {
+                // Apply font to all TMP components in the dialogue manager
+                var tmpFont = TMPFontReplacer.GetCachedFont(Plugin.GlobalFontPath);
+                if (tmpFont != null)
+                {
+                    var allTmpTexts = __instance.GetComponentsInChildren<TMP_Text>(true);
+                    foreach (var tmp in allTmpTexts)
+                    {
+                        if (tmp != null)
+                        {
+                            TMPFontReplacer.ApplyFontToTMP(tmp, tmpFont);
+                        }
+                    }
+                    Logging.Info($"[TutorialDialogueManager] Applied font to {allTmpTexts.Length} TMP components");
+                }
+
                 if (clip == null) return;
 
                 var dialogueSourceField = AccessTools.Field(typeof(TutorialDialogueManager), "dialogueSource");
@@ -76,7 +114,8 @@ namespace IAmYourTranslator.Harmony_Patches
                 switch (clipName)
                 {
                     case "2 - sprinting":
-                        audioFile = Path.Combine(Paths.ConfigPath, "IAmYourTranslator", "audio", "2 - sprinting.ogg");
+                        if (Plugin.EnableAudioReplacementEntry.Value && LanguageManager.CurrentSummary != null)
+                            audioFile = Path.Combine(LanguageManager.CurrentSummary.Paths.AudioDir, "2 - sprinting.ogg");
                         break;
 
                         // Other cases with audio can be added

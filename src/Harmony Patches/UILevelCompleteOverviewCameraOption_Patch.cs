@@ -18,6 +18,7 @@ namespace IAmYourTranslator.Harmony_Patches
             try
             {
                 if (__instance == null) return;
+                if (!LanguageManager.IsLoaded || LanguageManager.CurrentLanguage == null) return;
 
                 var displayStrings = Traverse.Create(__instance).Field("displayStrings").GetValue<string[]>();
                 if (displayStrings == null || displayStrings.Length == 0) return;

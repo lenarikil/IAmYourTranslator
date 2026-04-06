@@ -1,16 +1,26 @@
 using System;
 using HarmonyLib;
 using UnityEngine;
-using UnityEngine.Assertions.Must;
 using BepInEx;
 using System.IO;
 using static IAmYourTranslator.CommonFunctions;
+using IAmYourTranslator.json;
 
 namespace IAmYourTranslator.HarmonyPatches
 {
     [HarmonyPatch]
     public static class AudioSourceLoggerPatch
     {
+        private static bool IsDebugLoggingEnabled()
+        {
+            return Plugin.EnableAudioDebugLogsEntry != null && Plugin.EnableAudioDebugLogsEntry.Value;
+        }
+
+        private static bool IsExperimentalRadioAudioEnabled()
+        {
+            return Plugin.EnableExperimentalRadioAudioPatchesEntry != null && Plugin.EnableExperimentalRadioAudioPatchesEntry.Value;
+        }
+
         // === AudioSource.Play() ===
         [HarmonyPostfix]
         [HarmonyPatch(typeof(AudioSource), nameof(AudioSource.Play), new Type[] { })]
@@ -18,7 +28,11 @@ namespace IAmYourTranslator.HarmonyPatches
         {
             try
             {
+                if (!IsDebugLoggingEnabled())
+                    return;
                 if (__instance == null)
+                    return;
+                if (__instance.clip == null)
                     return;
 
                 var go = __instance.gameObject;
@@ -40,7 +54,11 @@ namespace IAmYourTranslator.HarmonyPatches
         {
             try
             {
+                if (!IsExperimentalRadioAudioEnabled())
+                    return;
                 if (__instance == null)
+                    return;
+                if (__instance.clip == null)
                     return;
 
                 var go = __instance.gameObject;
@@ -57,19 +75,25 @@ namespace IAmYourTranslator.HarmonyPatches
                     //AudioClipRawExtractor.TryDumpRawAudioData(__instance.clip, dumpPath);
                 }
                 
-                if (__instance.clip.name == "14 - same team"){
-                    string audioFile = Path.Combine(Paths.ConfigPath, "IAmYourTranslator", "audio", __instance.clip.name + ".wav");
-                    AudioClip newClip = AudioClipReplacer.LoadAudioClip(audioFile);
-                    if (newClip != null)
+                if (__instance.clip.name == "14 - same team" || __instance.clip.name == "iaybendcreditstest")
+                {
+                    if (Plugin.EnableAudioReplacementEntry.Value && LanguageManager.CurrentSummary != null)
                     {
-                        __instance.clip = newClip;
-                        __instance.time = 0f;
-                        Logging.Info($"[AudioLog] AudioSource clip replaced with '{newClip.name}'");
-                    }
-                    else
-                    {
-                        AudioClipReplacer.ExportAudioClipToWav(__instance.clip, audioFile);
-                        Logging.Warn($"[AudioLog] Failed to load '{audioFile}' for AudioSource clip replacement");
+                        string audioFile = Path.Combine(LanguageManager.CurrentSummary.Paths.AudioDir, __instance.clip.name + ".wav");
+                        AudioClip newClip = AudioClipReplacer.LoadAudioClip(audioFile);
+                        if (newClip != null)
+                        {
+                            Plugin.RegisterReplacedAudioSource(__instance, __instance.clip);
+                            __instance.clip = newClip;
+                            __instance.time = 0f;
+                            if (IsDebugLoggingEnabled())
+                                Logging.Info($"[AudioLog] AudioSource clip replaced with '{newClip.name}'");
+                        }
+                        else
+                        {
+                            if (IsDebugLoggingEnabled())
+                                Logging.Warn($"[AudioLog] Failed to load '{audioFile}' for AudioSource clip replacement");
+                        }
                     }
                 }
                 //Logging.Info($"[AudioLog] AudioSource.Play() called | Clip='{clipName}' | Object: {hierarchy}");
@@ -88,6 +112,8 @@ namespace IAmYourTranslator.HarmonyPatches
         {
             try
             {
+                if (!IsDebugLoggingEnabled())
+                    return;
                 if (__instance == null)
                     return;
 
@@ -110,6 +136,8 @@ namespace IAmYourTranslator.HarmonyPatches
         {
             try
             {
+                if (!IsDebugLoggingEnabled())
+                    return;
                 if (__instance == null)
                     return;
 
@@ -132,6 +160,8 @@ namespace IAmYourTranslator.HarmonyPatches
         {
             try
             {
+                if (!IsDebugLoggingEnabled())
+                    return;
                 if (__instance == null)
                     return;
 
@@ -154,6 +184,8 @@ namespace IAmYourTranslator.HarmonyPatches
         {
             try
             {
+                if (!IsDebugLoggingEnabled())
+                    return;
                 string clipName = clip ? clip.name : "null";
                 Logging.Info($"[AudioLog] AudioSource.PlayClipAtPoint() | Clip='{clipName}' | Pos={position}");
             }

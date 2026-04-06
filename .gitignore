@@ -20,6 +20,9 @@ plugins/
 # Decompiled game assemblies
 .Decompiled/
 
+#Logs and JSON
+.LogsAndJSON/
+
 # Build artifacts
 *.dll
 *.pdb
@@ -45,3 +48,5 @@ Temp/
 # Mod-specific outputs
 Release/
 Debug/
+.qwen/PROJECT_SUMMARY.md
+.qwen/QWEN.md

@@ -2,29 +2,136 @@ using BepInEx.Logging;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using System.Collections;
 using static IAmYourTranslator.CommonFunctions;
 using System.IO;
 using BepInEx;
+using IAmYourTranslator.json;
 
 namespace IAmYourTranslator
 {
     public class StartScreenHandler
     {
-        public static void HandleStartScreen()
+        public static void HandleStartScreen(MonoBehaviour coroutineHost = null)
         {
             Logging.Info("Handling Start Screen scene");
 
-            // Just call the method immediately, without delay
-            //PatchMainMenuButtons();
-            string TexturesDir = Path.Combine(Paths.ConfigPath, "IAmYourTranslator", "textures");
-            string TextureFile = Path.Combine(TexturesDir, "UILogoText.png");
-            GameObject TitleImage = GameObject.Find("Start Screen UI/Title Anchor/Title Image");
+            // Apply font first
+            var font = Plugin.GlobalTMPFont ?? CommonFunctions.TMPFontReplacer.GetCachedFont(Plugin.GlobalFontPath);
+            if (font != null)
+            {
+                CommonFunctions.TMPFontReplacer.ApplyFontToAllTMP(font);
+                Logging.Info("[StartScreenHandler] Applied global font to all TMP text");
+            }
+            else
+            {
+                Logging.Warn("[StartScreenHandler] GlobalTMPFont is null, restoring original fonts");
+                CommonFunctions.TMPFontReplacer.RestoreOriginalFonts();
+            }
 
-            UITextureReplacer.ApplyTo(TitleImage, TextureFile);
-            
+            // Apply textures with delay to ensure UI is ready
+            var host = coroutineHost ?? Plugin.GetOrRecoverInstance();
+            if (host != null)
+            {
+                host.StartCoroutine(ApplyTitleImageDelayed());
+                Logging.Info("[StartScreenHandler] Started ApplyTitleImageDelayed coroutine");
+            }
+            else
+            {
+                // Fallback: apply immediately without coroutine
+                Logging.Warn("[StartScreenHandler] Coroutine host is null, applying texture immediately");
+                ApplyTitleImageImmediate();
+            }
+
             Logging.Info("Start Screen handling completed");
         }
-        
+
+        private static void ApplyTitleImageImmediate()
+        {
+            string TextureFile = null;
+            if (LanguageManager.CurrentSummary != null && Plugin.EnableTextureReplacementEntry.Value)
+            {
+                TextureFile = Path.Combine(LanguageManager.CurrentSummary.Paths.TexturesDir, "UILogoText.png");
+                Logging.Info($"[StartScreenHandler] Looking for texture at: {TextureFile}");
+                Logging.Info($"[StartScreenHandler] Texture file exists: {File.Exists(TextureFile)}");
+            }
+            else
+            {
+                Logging.Info($"[StartScreenHandler] Texture replacement disabled or no language loaded");
+            }
+
+            GameObject TitleImage = GameObject.Find("Start Screen UI/Title Anchor/Title Image");
+            if (TitleImage == null)
+            {
+                Logging.Warn("[StartScreenHandler] TitleImage not found!");
+                return;
+            }
+
+            UITextureReplacer.ApplyTo(TitleImage, TextureFile);
+            Logging.Info($"[StartScreenHandler] Applied texture immediately");
+        }
+
+        private static IEnumerator ApplyTitleImageDelayed()
+        {
+            yield return new WaitForSecondsRealtime(0.5f);
+
+            string TextureFile = null;
+            if (LanguageManager.CurrentSummary != null && Plugin.EnableTextureReplacementEntry.Value)
+            {
+                TextureFile = Path.Combine(LanguageManager.CurrentSummary.Paths.TexturesDir, "UILogoText.png");
+                Logging.Info($"[StartScreenHandler] Looking for texture at: {TextureFile}");
+                Logging.Info($"[StartScreenHandler] Texture file exists: {File.Exists(TextureFile)}");
+            }
+            else
+            {
+                Logging.Info($"[StartScreenHandler] Texture replacement disabled or no language loaded. CurrentSummary={LanguageManager.CurrentSummary != null}, EnableTextureReplacement={Plugin.EnableTextureReplacementEntry?.Value}");
+            }
+
+            GameObject TitleImage = GameObject.Find("Start Screen UI/Title Anchor/Title Image");
+            if (TitleImage == null)
+            {
+                Logging.Warn("[StartScreenHandler] TitleImage not found! Trying alternative search...");
+                // Try to find by recursive search
+                var roots = SceneManager.GetActiveScene().GetRootGameObjects();
+                foreach (var root in roots)
+                {
+                    var found = RecursiveFindChild(root.transform, "Title Image");
+                    if (found != null)
+                    {
+                        TitleImage = found.gameObject;
+                        Logging.Info($"[StartScreenHandler] Found TitleImage via recursive search: {found.name}");
+                        break;
+                    }
+                }
+            }
+
+            if (TitleImage != null)
+            {
+                UITextureReplacer.ApplyTo(TitleImage, TextureFile);
+                Logging.Info($"[StartScreenHandler] Applied texture to TitleImage (textureFile={(string.IsNullOrEmpty(TextureFile) ? "null (restore original)" : TextureFile)})");
+            }
+            else
+            {
+                Logging.Warn("[StartScreenHandler] TitleImage still not found after recursive search");
+            }
+        }
+
+        private static Transform RecursiveFindChild(Transform parent, string childName)
+        {
+            if (parent == null) return null;
+            
+            foreach (Transform child in parent)
+            {
+                if (child.name == childName)
+                    return child;
+
+                Transform result = RecursiveFindChild(child, childName);
+                if (result != null)
+                    return result;
+            }
+            return null;
+        }
+
         public static void PatchMainMenuButtons()
         {
             try

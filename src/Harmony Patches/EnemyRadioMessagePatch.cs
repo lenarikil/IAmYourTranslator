@@ -7,22 +7,26 @@ using TMPro;
 using static IAmYourTranslator.CommonFunctions;
 using BepInEx;
 using UnityEngine.SceneManagement;
+using System.Reflection;
 
 namespace IAmYourTranslator.HarmonyPatches
 {
     [HarmonyPatch]
     public static class EnemyRadioPatches
     {
+        private static readonly FieldInfo DialogueField = AccessTools.Field(typeof(HUDEnemyRadio), "dialogue");
+
         // ----------------------------
         // DisplayLine — visual text replacement
         // ----------------------------
         [HarmonyPatch(typeof(HUDEnemyRadio), "DisplayLine")]
-        [HarmonyPrefix]
-        public static void DisplayLinePrefix(HUDEnemyRadio __instance, ref string dialogueString, EnemyHuman enemy, Color displayColor, bool scripted)
+        [HarmonyPostfix]
+        public static void DisplayLinePostfix(HUDEnemyRadio __instance, string dialogueString, EnemyHuman enemy, Color displayColor, bool scripted)
         {
             try
             {
                 if (string.IsNullOrEmpty(dialogueString)) return;
+                if (!LanguageManager.IsLoaded || LanguageManager.CurrentLanguage == null) return;
 
                 string translatedText;
 
@@ -58,25 +62,29 @@ namespace IAmYourTranslator.HarmonyPatches
                     }
                 }
 
-                // Replace text in UI
-                dialogueString = translatedText;
-                var tmp = __instance.GetComponentInChildren<TextMeshProUGUI>(true);
+                // Apply translated text only after original DisplayLine logic is done,
+                // so we do not alter any potential vanilla audio flow.
+                var tmp = DialogueField?.GetValue(__instance) as TMP_Text;
+                if (tmp == null)
+                    tmp = __instance.GetComponentInChildren<TextMeshProUGUI>(true);
+
                 if (tmp != null)
+                {
+                    tmp.text = translatedText;
+                    var tmpFont = TMPFontReplacer.GetCachedFont(Plugin.GlobalFontPath);
+                    if (tmpFont != null)
                     {
-                        var tmpFont = TMPFontReplacer.GetCachedFont(Plugin.GlobalFontPath);
-                        if (tmpFont != null)
-                        {
-                            CommonFunctions.TMPFontReplacer.ApplyFontToTMP(tmp, tmpFont);
-                        }
-                        else
-                        {
-                            Logging.Warn("[HUDEnemyRadio] Failed to load custom font!");
-                        }
+                        CommonFunctions.TMPFontReplacer.ApplyFontToTMP(tmp, tmpFont);
+                    }
+                    else
+                    {
+                        Logging.Warn("[HUDEnemyRadio] Failed to load custom font!");
+                    }
                 }
             }
             catch (Exception e)
             {
-                Logging.Error($"[HUDEnemyRadio] Error in DisplayLinePrefix: {e}");
+                Logging.Error($"[HUDEnemyRadio] Error in DisplayLinePostfix: {e}");
             }
         }
     }

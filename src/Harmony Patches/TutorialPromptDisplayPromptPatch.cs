@@ -21,6 +21,8 @@ namespace IAmYourTranslator.HarmonyPatches
             {
                 if (__instance == null)
                     return true;
+                if (!LanguageManager.IsLoaded || LanguageManager.CurrentLanguage == null)
+                    return true;
 
                 // Get the private field 'prompt'
                 var promptField = AccessTools.Field(typeof(TutorialPromptStorer), "prompt");
@@ -65,7 +67,7 @@ namespace IAmYourTranslator.HarmonyPatches
 
                 translatedText = translatedText.Replace("[KEY]", $"<size={size}%>{inputKeyNameForAction}<size=100%>");
 
-                // === New block: font replacement ===
+                // === Font replacement ===
                 var promptHUD = GameManager.instance.player.GetHUD().GetTutorialPrompt();
                 if (promptHUD == null)
                 {
@@ -73,23 +75,25 @@ namespace IAmYourTranslator.HarmonyPatches
                     return true;
                 }
 
-                // Get TMP component on HUD
-                var tmp = promptHUD.GetComponentInChildren<TextMeshProUGUI>(true);
-                if (tmp != null)
+                // Apply font to all TMP components in the prompt HUD
+                var tmpFont = TMPFontReplacer.GetCachedFont(Plugin.GlobalFontPath);
+                if (tmpFont != null)
                 {
-                        var tmpFont = TMPFontReplacer.GetCachedFont(Plugin.GlobalFontPath);
-                    if (tmpFont != null)
+                    var allTmpTexts = promptHUD.GetComponentsInChildren<TMP_Text>(true);
+                    int appliedCount = 0;
+                    foreach (var tmp in allTmpTexts)
                     {
-                        TMPFontReplacer.ApplyFontToTMP(tmp, tmpFont);
+                        if (tmp != null)
+                        {
+                            TMPFontReplacer.ApplyFontToTMP(tmp, tmpFont);
+                            appliedCount++;
+                        }
                     }
-                    else
-                    {
-                        Logging.Warn("[TutorialPrompt] Failed to load custom font!");
-                    }
+                    Logging.Info($"[TutorialPrompt] Applied font to {appliedCount} TMP components");
                 }
                 else
                 {
-                    Logging.Warn("[TutorialPrompt] TMP component not found!");
+                    Logging.Warn("[TutorialPrompt] Failed to load custom font!");
                 }
 
                 // Display the translated text

@@ -1,8 +1,8 @@
 using System;
 using System.Linq;
+using System.Collections.Generic;
 using HarmonyLib;
 using TMPro;
-using UnityEngine;
 using IAmYourTranslator.json;
 using static IAmYourTranslator.CommonFunctions;
 
@@ -28,29 +28,50 @@ namespace IAmYourTranslator.Harmony_Patches
                 // Break into lines and translate each line using lockedDescriptions
                 var lines = original.Split(new[] { '\n' }, StringSplitOptions.None).Select(s => s.TrimEnd()).ToArray();
                 bool changed = false;
+                bool addedMissing = false;
+
+                Dictionary<string, string> dict = null;
                 if (LanguageManager.IsLoaded)
                 {
-                    var dict = LanguageManager.CurrentLanguage.lockedDescriptions;
+                    dict = LanguageManager.CurrentLanguage.lockedDescriptions;
                     if (dict == null)
-                        dict = LanguageManager.CurrentLanguage.lockedDescriptions = new System.Collections.Generic.Dictionary<string, string>();
+                        dict = LanguageManager.CurrentLanguage.lockedDescriptions = new Dictionary<string, string>();
+                }
 
+                if (dict != null || !LanguageManager.IsLoaded)
+                {
                     for (int i = 0; i < lines.Length; i++)
                     {
                         var line = lines[i];
                         if (string.IsNullOrEmpty(line)) continue;
-                        if (dict.TryGetValue(line, out var val) && !string.IsNullOrEmpty(val) && val != line)
+
+                        string sourceLine = ResolveOriginalTranslationKey(line, dict);
+                        string translated = sourceLine;
+
+                        if (dict != null)
                         {
-                            lines[i] = val;
-                            changed = true;
+                            if (dict.TryGetValue(sourceLine, out var val) && !string.IsNullOrEmpty(val) && val != sourceLine)
+                            {
+                                translated = val;
+                            }
+                            else if (!dict.ContainsKey(sourceLine))
+                            {
+                                dict[sourceLine] = sourceLine;
+                                addedMissing = true;
+                                Logging.Info($"[UILevelSelectFeature_Patch] Added missing lockedDescription key: '{sourceLine}'");
+                            }
                         }
-                        else if (!dict.ContainsKey(line))
+
+                        if (!string.Equals(lines[i], translated, StringComparison.Ordinal))
                         {
-                            dict[line] = line;
-                            LanguageManager.SaveCurrentLanguage();
-                            Logging.Info($"[UILevelSelectFeature_Patch] Added missing lockedDescription key: '{line}'");
+                            lines[i] = translated;
+                            changed = true;
                         }
                     }
                 }
+
+                if (addedMissing)
+                    LanguageManager.SaveCurrentLanguage();
 
                 if (changed)
                 {

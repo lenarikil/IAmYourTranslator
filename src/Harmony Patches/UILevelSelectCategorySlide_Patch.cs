@@ -1,5 +1,5 @@
 using System;
-using System.Linq;
+using System.Collections.Generic;
 using HarmonyLib;
 using TMPro;
 using UnityEngine;
@@ -17,32 +17,21 @@ namespace IAmYourTranslator.Harmony_Patches
             try
             {
                 if (__instance == null) return;
+                Dictionary<string, string> dict = null;
+                if (LanguageManager.IsLoaded)
+                {
+                    dict = LanguageManager.CurrentLanguage.categorySlideTexts;
+                    if (dict == null)
+                        dict = LanguageManager.CurrentLanguage.categorySlideTexts = new Dictionary<string, string>();
+                }
 
                 // Translate category name using levelNames
                 var catField = AccessTools.Field(typeof(UILevelSelectCategorySlide), "categoryName");
                 var catTmp = catField?.GetValue(__instance) as TMP_Text;
                 if (catTmp != null)
                 {
-                    string original = catTmp.text ?? string.Empty;
-                    string translated = original;
-                    if (LanguageManager.IsLoaded)
-                    {
-                        var dict = LanguageManager.CurrentLanguage.categorySlideTexts;
-                        if (dict == null)
-                            dict = LanguageManager.CurrentLanguage.categorySlideTexts = new System.Collections.Generic.Dictionary<string, string>();
-
-                        if (dict.TryGetValue(original, out var val) && !string.IsNullOrEmpty(val) && val != original)
-                        {
-                            translated = val;
-                        }
-                        else if (!dict.ContainsKey(original))
-                        {
-                            dict[original] = original;
-                            LanguageManager.SaveCurrentLanguage();
-                            Logging.Info($"[UILevelSelectCategorySlide_Patch] Added missing categorySlideTexts key: '{original}'");
-                        }
-                    }
-                    catTmp.text = translated;
+                    string original = ResolveOriginalTranslationKey(catTmp.text ?? string.Empty, dict);
+                    TranslateTextAndSaveIfMissing(catTmp, original, dict, "[UILevelSelectCategorySlide_Patch]");
                 }
 
                 // Translate lockedText lines using mainObjectives (unlock conditions may be arbitrary strings)
@@ -51,36 +40,46 @@ namespace IAmYourTranslator.Harmony_Patches
                 if (lockedTmp != null)
                 {
                     string originalAll = lockedTmp.text ?? string.Empty;
-                    var lines = originalAll.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToArray();
+                    var lines = originalAll.Split(new[] { '\n' }, StringSplitOptions.None);
                     bool changed = false;
+                    bool addedMissing = false;
                     for (int i = 0; i < lines.Length; i++)
                     {
-                        var line = lines[i];
-                        if (string.IsNullOrEmpty(line)) continue;
-                        string translated = line;
-                        if (LanguageManager.IsLoaded)
-                        {
-                                var dict = LanguageManager.CurrentLanguage.categorySlideTexts;
-                                if (dict == null)
-                                    dict = LanguageManager.CurrentLanguage.categorySlideTexts = new System.Collections.Generic.Dictionary<string, string>();
+                        var line = lines[i] ?? string.Empty;
+                        bool hasCr = line.EndsWith("\r", StringComparison.Ordinal);
+                        string lineCore = hasCr ? line.Substring(0, line.Length - 1) : line;
+                        string trimmedLine = lineCore.Trim();
+                        if (string.IsNullOrEmpty(trimmedLine))
+                            continue;
 
-                                if (dict.TryGetValue(line, out var val) && !string.IsNullOrEmpty(val) && val != line)
-                                {
-                                    translated = val;
-                                }
-                                else if (!dict.ContainsKey(line))
-                                {
-                                    dict[line] = line;
-                                    LanguageManager.SaveCurrentLanguage();
-                                    Logging.Info($"[UILevelSelectCategorySlide_Patch] Added missing categorySlideTexts key: '{line}'");
-                                }
-                        }
-                        if (translated != line)
+                        string sourceLine = ResolveOriginalTranslationKey(trimmedLine, dict);
+                        string translated = sourceLine;
+
+                        if (dict != null)
                         {
-                            lines[i] = translated;
+                            if (dict.TryGetValue(sourceLine, out var val) && !string.IsNullOrEmpty(val) && val != sourceLine)
+                            {
+                                translated = val;
+                            }
+                            else if (!dict.ContainsKey(sourceLine))
+                            {
+                                dict[sourceLine] = sourceLine;
+                                addedMissing = true;
+                                Logging.Info($"[UILevelSelectCategorySlide_Patch] Added missing categorySlideTexts key: '{sourceLine}'");
+                            }
+                        }
+
+                        string finalLine = hasCr ? translated + "\r" : translated;
+                        if (!string.Equals(lines[i], finalLine, StringComparison.Ordinal))
+                        {
+                            lines[i] = finalLine;
                             changed = true;
                         }
                     }
+
+                    if (addedMissing)
+                        LanguageManager.SaveCurrentLanguage();
+
                     if (changed)
                         lockedTmp.text = string.Join("\n", lines);
                 }

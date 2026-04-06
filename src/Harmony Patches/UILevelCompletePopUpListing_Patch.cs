@@ -19,6 +19,8 @@ namespace IAmYourTranslator.Harmony_Patches
             {
                 if (__instance == null || string.IsNullOrEmpty(description))
                     return;
+                if (!LanguageManager.IsLoaded || LanguageManager.CurrentLanguage == null)
+                    return;
 
                 // Get the timerIncrease dictionary (using the same as HUDTimerIncrease)
                 var dict = LanguageManager.CurrentLanguage.timerIncrease;

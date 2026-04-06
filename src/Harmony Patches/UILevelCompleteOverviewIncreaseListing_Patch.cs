@@ -18,6 +18,7 @@ namespace IAmYourTranslator.Harmony_Patches
             try
             {
                 if (__instance == null || increase == null) return;
+                if (!LanguageManager.IsLoaded || LanguageManager.CurrentLanguage == null) return;
 
                 var go = (__instance as UnityEngine.Component)?.gameObject;
                 if (go == null)

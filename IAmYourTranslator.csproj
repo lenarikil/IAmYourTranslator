@@ -56,6 +56,9 @@
     <Reference Include="UnityEngine.UnityWebRequestAudioModule">
       <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\I Am Your Beast_Data\Managed\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
     </Reference> 
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\I Am Your Beast_Data\Managed\UnityEngine.UIModule.dll</HintPath>
+    </Reference> 
   </ItemGroup>
 <ItemGroup>
   <Reference Include="Microsoft.CSharp" />

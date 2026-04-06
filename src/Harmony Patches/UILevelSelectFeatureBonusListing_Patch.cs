@@ -1,9 +1,8 @@
 using System;
 using System.Globalization;
+using System.Collections.Generic;
 using HarmonyLib;
 using TMPro;
-using UnityEngine;
-using UnityEngine.UI;
 using IAmYourTranslator.json;
 using static IAmYourTranslator.CommonFunctions;
 
@@ -33,22 +32,28 @@ namespace IAmYourTranslator.Harmony_Patches
                 if (idx >= 0)
                     baseText = current.Substring(0, idx);
 
-                string translated = baseText;
+                Dictionary<string, string> dict = null;
                 if (LanguageManager.IsLoaded)
                 {
-                    var dict = LanguageManager.CurrentLanguage.bonusObjectives;
+                    dict = LanguageManager.CurrentLanguage.bonusObjectives;
                     if (dict == null)
-                        dict = LanguageManager.CurrentLanguage.bonusObjectives = new System.Collections.Generic.Dictionary<string, string>();
+                        dict = LanguageManager.CurrentLanguage.bonusObjectives = new Dictionary<string, string>();
+                }
 
-                    if (dict.TryGetValue(baseText, out var val) && !string.IsNullOrEmpty(val) && val != baseText)
+                string sourceText = ResolveOriginalTranslationKey(baseText, dict);
+                string translated = sourceText;
+
+                if (dict != null)
+                {
+                    if (dict.TryGetValue(sourceText, out var val) && !string.IsNullOrEmpty(val) && val != sourceText)
                     {
                         translated = val;
                     }
-                    else if (!dict.ContainsKey(baseText))
+                    else if (!dict.ContainsKey(sourceText))
                     {
-                        dict[baseText] = baseText; // add placeholder
+                        dict[sourceText] = sourceText; // add placeholder
                         LanguageManager.SaveCurrentLanguage();
-                        Logging.Info($"[UILevelSelectFeatureBonusListing_Patch] Added missing translation key: '{baseText}'");
+                        Logging.Info($"[UILevelSelectFeatureBonusListing_Patch] Added missing translation key: '{sourceText}'");
                     }
                 }
 

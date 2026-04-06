@@ -6,13 +6,18 @@ using UnityEngine;
 using UnityEngine.UI;
 using IAmYourTranslator.json;
 using static IAmYourTranslator.CommonFunctions;
+using BepInEx;
 
 namespace IAmYourTranslator.Harmony_Patches
 {
+    /// <summary>
+    /// Patches UILevelCompleteOverviewDetails to translate overview headers and apply custom resources.
+    /// Translates textHeaderTotal, textHeaderExtra (multi-line), replaces logo texture, and applies global font.
+    /// </summary>
     [HarmonyPatch(typeof(UILevelCompleteOverviewDetails), "Start")]
     public static class UILevelCompleteOverviewDetails_Patch
     {
-        // track added keys to avoid saving repeatedly
+        // Track added keys to avoid saving repeatedly
         private static readonly System.Collections.Generic.HashSet<string> _addedOverviewDetailsKeys = new System.Collections.Generic.HashSet<string>();
 
         [HarmonyPostfix]
@@ -20,39 +25,28 @@ namespace IAmYourTranslator.Harmony_Patches
         {
             try
             {
-                if (__instance == null) return;
+                if (__instance == null)
+                    return;
+                if (!LanguageManager.IsLoaded || LanguageManager.CurrentLanguage == null)
+                    return;
 
                 var dict = LanguageManager.CurrentLanguage.overviewScreen;
-                if (dict == null) dict = LanguageManager.CurrentLanguage.overviewScreen = new System.Collections.Generic.Dictionary<string, string>();
+                if (dict == null)
+                    dict = LanguageManager.CurrentLanguage.overviewScreen = new System.Collections.Generic.Dictionary<string, string>();
 
-                // Get textHeaderTotal
+                // Translate textHeaderTotal
                 var textHeaderTotal = Traverse.Create(__instance).Field("textHeaderTotal").GetValue<TMP_Text>();
                 if (textHeaderTotal != null && !string.IsNullOrEmpty(textHeaderTotal.text))
                 {
-                    string originalText = textHeaderTotal.text;
-                    if (dict.TryGetValue(originalText, out var trans) && !string.IsNullOrEmpty(trans) && trans != originalText)
-                    {
-                        textHeaderTotal.text = trans;
-                    }
-                    else if (!dict.ContainsKey(originalText))
-                    {
-                        dict[originalText] = originalText;
-                        lock (_addedOverviewDetailsKeys)
-                        {
-                            if (!_addedOverviewDetailsKeys.Contains(originalText))
-                            {
-                                _addedOverviewDetailsKeys.Add(originalText);
-                                LanguageManager.SaveCurrentLanguage();
-                            }
-                        }
-                    }
+                    TranslateAndSaveIfMissingWithCache(textHeaderTotal, textHeaderTotal.text, dict, "[UILevelCompleteOverviewDetails.Header]");
+                    
                     // Apply font
                     var tmpFont = Plugin.GlobalTMPFont;
                     if (tmpFont != null)
                         TMPFontReplacer.ApplyFontToTMP(textHeaderTotal, tmpFont);
                 }
 
-                // Get textHeaderExtra (contains "Base\nReclaimed", need to translate both parts)
+                // Translate textHeaderExtra (contains "Base\nReclaimed", need to translate both parts)
                 var textHeaderExtra = Traverse.Create(__instance).Field("textHeaderExtra").GetValue<TMP_Text>();
                 if (textHeaderExtra != null && !string.IsNullOrEmpty(textHeaderExtra.text))
                 {
@@ -69,6 +63,7 @@ namespace IAmYourTranslator.Harmony_Patches
                             continue;
                         }
 
+                        // Translate individual parts
                         if (dict.TryGetValue(part, out var trans) && !string.IsNullOrEmpty(trans) && trans != part)
                         {
                             translatedParts[i] = trans;
@@ -105,18 +100,59 @@ namespace IAmYourTranslator.Harmony_Patches
                 if (logoTransform != null)
                 {
                     GameObject logoObj = logoTransform.gameObject;
-                    string texturesDir = Path.Combine(BepInEx.Paths.ConfigPath, "IAmYourTranslator", "textures");
-                    string logoFile = Path.Combine(texturesDir, "UILogoText.png");
-                    UITextureReplacer.ApplyTo(logoObj, logoFile, false);
+                    if (Plugin.EnableTextureReplacementEntry.Value && LanguageManager.CurrentSummary != null)
+                    {
+                        string logoFile = Path.Combine(LanguageManager.CurrentSummary.Paths.TexturesDir, "UILogoText.png");
+                        UITextureReplacer.ApplyTo(logoObj, logoFile, false);
+                        Logging.Info($"[UILevelCompleteOverviewDetails] Applied logo texture (exists={File.Exists(logoFile)})");
+                    }
+                    else
+                    {
+                        Logging.Info("[UILevelCompleteOverviewDetails] Texture replacement disabled or no language loaded");
+                    }
                 }
                 else
                 {
                     Logging.Warn("[UILevelCompleteOverviewDetails] Logo object not found");
                 }
+
+                // Apply global font to ALL TMP_Text children (including kill types list)
+                // Uses centralized helper from CommonFunctions
+                ApplyFontToAllChildrenTMP(__instance, Plugin.GlobalTMPFont, "[UILevelCompleteOverviewDetails]");
             }
             catch (Exception e)
             {
                 Logging.Warn($"[UILevelCompleteOverviewDetails] StartPostfix error: {e}");
+            }
+        }
+
+        /// <summary>
+        /// Translates text and saves to dictionary with cache to avoid duplicate saves.
+        /// </summary>
+        private static void TranslateAndSaveIfMissingWithCache(TMP_Text tmpComponent, string originalText, System.Collections.Generic.Dictionary<string, string> dict, string logPrefix)
+        {
+            if (string.IsNullOrEmpty(originalText) || dict == null)
+                return;
+
+            if (dict.TryGetValue(originalText, out var trans) && !string.IsNullOrEmpty(trans) && trans != originalText)
+            {
+                tmpComponent.text = trans;
+                Logging.Info($"{logPrefix} Translated: '{originalText}' -> '{trans}'");
+                return;
+            }
+
+            // Add original as placeholder if missing
+            if (!dict.ContainsKey(originalText))
+            {
+                dict[originalText] = originalText;
+                lock (_addedOverviewDetailsKeys)
+                {
+                    if (!_addedOverviewDetailsKeys.Contains(originalText))
+                    {
+                        _addedOverviewDetailsKeys.Add(originalText);
+                        LanguageManager.SaveCurrentLanguage();
+                    }
+                }
             }
         }
     }

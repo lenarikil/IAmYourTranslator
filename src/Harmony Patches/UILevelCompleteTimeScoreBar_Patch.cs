@@ -27,6 +27,7 @@ namespace IAmYourTranslator.Harmony_Patches
             try
             {
                 if (__instance == null) return;
+                if (!LanguageManager.IsLoaded || LanguageManager.CurrentLanguage == null) return;
 
                 // DIAGNOSTICS: check if this method is called at all
                 if (!_patchApplied)
