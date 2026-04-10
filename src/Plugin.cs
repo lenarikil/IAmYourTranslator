@@ -86,6 +86,7 @@ namespace IAmYourTranslator
                 Logging.Warn("[Plugin] Instance was null in OnSceneLoaded, recovered.");
             }
             TextSynchronizerPatch.SetCoroutineHost(this);
+            LevelMusicProfilePatch.SetCoroutineHost(this);
 
             // Safety check: ensure plugin is fully initialized
             if (!ready)
@@ -105,6 +106,7 @@ namespace IAmYourTranslator
             GameObject canvasObj = GetInactiveRootObject("Canvas");
             Core.HandleSceneSwitch(scene, ref canvasObj);
             TextSynchronizerPatch.PreloadSceneReplacements();
+            LevelMusicProfilePatch.PreloadLevelMusic();
 
             string sceneName = GetCurrentSceneName();
             if (sceneName != "Bootstrap")
@@ -284,6 +286,9 @@ namespace IAmYourTranslator
                 {
                     TextSynchronizerPatch.PreloadSceneReplacements();
                 }
+
+                // Очищаем кэш музыки при смене языка
+                LevelMusicProfilePatch.ClearCache();
 
                 Canvas.ForceUpdateCanvases();
                 Logging.Info("[Plugin] RefreshLocalizationInCurrentScene completed successfully");
@@ -642,6 +647,11 @@ namespace IAmYourTranslator
                     if (!LanguageManager.LoadLanguage(SelectedLanguageEntry.Value))
                     {
                         Logging.Warn($"Failed to load language '{SelectedLanguageEntry.Value}', continuing with vanilla text.");
+                    }
+                    else
+                    {
+                        // Очищаем кэш музыки при загрузке нового языка
+                        LevelMusicProfilePatch.ClearCache();
                     }
                 }
 

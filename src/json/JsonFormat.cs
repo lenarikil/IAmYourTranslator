@@ -59,6 +59,8 @@ namespace IAmYourTranslator.json
         public Dictionary<string, string> killConfirmation { get; set; } = new Dictionary<string, string>();
         // Translations of time and score bonus descriptions (HUDTimerIncrease)
         public Dictionary<string, string> timerIncrease { get; set; } = new Dictionary<string, string>();
+        // Translations for HUDLevelThreatTimer texts (header and warning) - hierarchical: "headerText" and "warningText" sub-dictionaries
+        public Dictionary<string, Dictionary<string, string>> threatTimerTexts { get; set; } = new Dictionary<string, Dictionary<string, string>>();
         // Translations of headers on the level completion screen (Final Screen)
         public Dictionary<string, string> finalScreen { get; set; } = new Dictionary<string, string>();
 

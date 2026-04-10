@@ -34,6 +34,12 @@ namespace IAmYourTranslator.Harmony_Patches
 
                 var original = __result;
 
+                // Skip objectives containing [WEAPON] placeholder - they will be handled later with actual weapon name
+                if (original.Contains("[WEAPON]"))
+                {
+                    return;
+                }
+
                 // Try exact match first
                 if (dict.TryGetValue(original, out var val) && !string.IsNullOrEmpty(val) && val != original)
                 {

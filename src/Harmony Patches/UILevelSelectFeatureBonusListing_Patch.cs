@@ -41,6 +41,13 @@ namespace IAmYourTranslator.Harmony_Patches
                 }
 
                 string sourceText = ResolveOriginalTranslationKey(baseText, dict);
+                
+                // Skip texts containing [WEAPON] placeholder - they will be handled later with actual weapon name
+                if (sourceText.Contains("[WEAPON]"))
+                {
+                    return;
+                }
+                
                 string translated = sourceText;
 
                 if (dict != null)
