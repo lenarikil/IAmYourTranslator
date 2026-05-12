@@ -77,6 +77,9 @@ namespace IAmYourTranslator.Harmony_Patches
                     }
                 }
 
+                // Replace level complete text
+                ReplaceLevelCompleteText(__instance);
+
                 // Apply widescreen layout adjustments if enabled
                 if (enableWideScreenLayout)
                 {
@@ -194,6 +197,123 @@ namespace IAmYourTranslator.Harmony_Patches
             catch (Exception e)
             {
                 Logging.Error($"[UILevelCompleteScreen] Error in WideScreenLevelCompletePatch: {e}");
+            }
+        }
+
+        /// <summary>
+        /// Replaces the level complete text with custom text.
+        /// Path: Canvas/Scale Anchor/Main Anchor/Level Name/Complete Mask/Text (TMP)
+        /// </summary>
+        private static void ReplaceLevelCompleteText(UILevelCompleteScreen __instance)
+        {
+            try
+            {
+                if (__instance == null) return;
+
+                // Find Canvas
+                Transform canvasTrans = __instance.transform.Find("Canvas");
+                if (canvasTrans == null)
+                    canvasTrans = RecursiveFindChild(__instance.transform, "Canvas");
+
+                if (canvasTrans == null)
+                {
+                    Logging.Warn("[UILevelCompleteScreen] Canvas not found for text replacement");
+                    return;
+                }
+
+                // Find Scale Anchor
+                Transform scaleAnchor = canvasTrans.Find("Scale Anchor") ?? RecursiveFindChild(canvasTrans, "Scale Anchor");
+                if (scaleAnchor == null)
+                {
+                    Logging.Warn("[UILevelCompleteScreen] Scale Anchor not found");
+                    return;
+                }
+
+                // Find Main Anchor
+                Transform mainAnchor = scaleAnchor.Find("Main Anchor") ?? RecursiveFindChild(scaleAnchor, "Main Anchor");
+                if (mainAnchor == null)
+                {
+                    Logging.Warn("[UILevelCompleteScreen] Main Anchor not found");
+                    return;
+                }
+
+                // Find Level Name
+                Transform levelName = mainAnchor.Find("Level Name") ?? RecursiveFindChild(mainAnchor, "Level Name");
+                if (levelName == null)
+                {
+                    Logging.Warn("[UILevelCompleteScreen] Level Name not found");
+                    return;
+                }
+
+                // Find Complete Mask
+                Transform completeMask = levelName.Find("Complete Mask") ?? RecursiveFindChild(levelName, "Complete Mask");
+                if (completeMask == null)
+                {
+                    Logging.Warn("[UILevelCompleteScreen] Complete Mask not found");
+                    return;
+                }
+
+                // Find Text (TMP)
+                Transform textTransform = completeMask.Find("Text (TMP)") ?? RecursiveFindChild(completeMask, "Text (TMP)");
+                if (textTransform == null)
+                {
+                    Logging.Warn("[UILevelCompleteScreen] Text (TMP) not found");
+                    return;
+                }
+
+                // Get TMP_Text component
+                var tmpText = textTransform.GetComponent<TMP_Text>();
+                if (tmpText == null)
+                {
+                    Logging.Warn("[UILevelCompleteScreen] TMP_Text component not found on Text (TMP) object");
+                    return;
+                }
+
+                // Use language system if loaded
+                if (LanguageManager.IsLoaded)
+                {
+                    var dict = LanguageManager.CurrentLanguage.finalScreen;
+                    if (dict == null)
+                    {
+                        dict = new System.Collections.Generic.Dictionary<string, string>();
+                        LanguageManager.CurrentLanguage.finalScreen = dict;
+                    }
+
+                    string originalText = tmpText.text;
+                    if (string.IsNullOrEmpty(originalText))
+                    {
+                        Logging.Warn("[UILevelCompleteScreen] Original text is empty, skipping translation");
+                        return;
+                    }
+
+                    // Try to get translation
+                    if (dict.TryGetValue(originalText, out var translated) && !string.IsNullOrEmpty(translated) && translated != originalText)
+                    {
+                        tmpText.text = translated;
+                        Logging.Info($"[UILevelCompleteScreen] Translated text from '{originalText}' to '{translated}'");
+                    }
+                    else if (!dict.ContainsKey(originalText))
+                    {
+                        // Add missing key to dictionary with test translation
+                        string Translation = originalText;
+                        dict[originalText] = Translation;
+                        tmpText.text = Translation;
+                        LanguageManager.SaveCurrentLanguage();
+                        Logging.Info($"[UILevelCompleteScreen] Added missing translation key to finalScreen: '{originalText}'");
+                    }
+                }
+
+                // Apply font if available
+                var tmpFont = TMPFontReplacer.GetCachedFont(Plugin.GlobalFontPath);
+                if (tmpFont != null)
+                {
+                    TMPFontReplacer.ApplyFontToTMP(tmpText, tmpFont);
+                    Logging.Info("[UILevelCompleteScreen] Applied font to level complete text");
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.Warn($"[UILevelCompleteScreen] ReplaceLevelCompleteText error: {e}");
             }
         }
     }
