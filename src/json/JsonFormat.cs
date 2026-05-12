@@ -68,6 +68,8 @@ namespace IAmYourTranslator.json
         public Dictionary<string, string> overviewScreen { get; set; } = new Dictionary<string, string>();
         // Translations for UI hints
         public Dictionary<string, string> Hints { get; set; } = new Dictionary<string, string>();
+        // Translations for health status texts (bleeding, super strength)
+        public Dictionary<string, string> healthStatus { get; set; } = new Dictionary<string, string>();
         // Translations of hardcoded texts (FleeceTextSetter)
         public Dictionary<string, string> hardCoded { get; set; } = new Dictionary<string, string>();
     }
