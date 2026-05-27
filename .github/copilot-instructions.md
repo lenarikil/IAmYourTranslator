@@ -52,7 +52,7 @@
   - Локальные булевы флаги для включения/отключения функций: `enableWideScreenLayout`, `enableFeatureName`.
 
 4) Сборка / деплой / отладка (точные команды)
-```powershell
+```
 dotnet build --configuration Debug   # быстрая итерация
 dotnet build --configuration Release # релизная сборка
 ```

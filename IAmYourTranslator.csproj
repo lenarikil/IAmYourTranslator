@@ -5,63 +5,92 @@
     <Description>Translation and asset replacement mod for I Am Your Beast</Description>
     <Version>1.0.0</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  <LangVersion>latest</LangVersion>
+    <LangVersion>latest</LangVersion>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+    <GameDir Condition="'$(GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast</GameDir>
+    <OpenModFolderAfterBuild Condition="'$(OpenModFolderAfterBuild)' == ''">true</OpenModFolderAfterBuild>
   </PropertyGroup>
+
+  <Target Name="ValidateGameDir" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(GameDir)' == ''"
+           Text="GameDir is not set. Create a local GameDir.props file or pass /p:GameDir=\&quot;C:\Path\To\I Am Your Beast\&quot; to MSBuild." />
+    <Error Condition="!Exists('$(GameDir)\I Am Your Beast_Data\Managed\Assembly-CSharp.dll')"
+           Text="GameDir path '$(GameDir)' is invalid or does not contain the game files. Update GameDir.props or pass /p:GameDir=\&quot;...\&quot;." />
+  </Target>
 
   <ItemGroup>
     <Reference Include="Assembly-CSharp">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\I Am Your Beast_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <HintPath>$(GameDir)\I Am Your Beast_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="0Harmony">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\BepInEx\core\0Harmony.dll</HintPath>
+      <HintPath>$(GameDir)\BepInEx\core\0Harmony.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="BepInEx">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\BepInEx\core\BepInEx.dll</HintPath>
+      <HintPath>$(GameDir)\BepInEx\core\BepInEx.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\I Am Your Beast_Data\Managed\UnityEngine.dll</HintPath>
+      <HintPath>$(GameDir)\I Am Your Beast_Data\Managed\UnityEngine.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\I Am Your Beast_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>$(GameDir)\I Am Your Beast_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="Unity.TextMeshPro">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\I Am Your Beast_Data\Managed\Unity.TextMeshPro.dll</HintPath>
+      <HintPath>$(GameDir)\I Am Your Beast_Data\Managed\Unity.TextMeshPro.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.UI">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\I Am Your Beast_Data\Managed\UnityEngine.UI.dll</HintPath>
+      <HintPath>$(GameDir)\I Am Your Beast_Data\Managed\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="AudioTextSynchronizer">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\I Am Your Beast_Data\Managed\AudioTextSynchronizer.dll</HintPath>
-    </Reference>
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\I Am Your Beast_Data\Managed\Newtonsoft.Json.dll</HintPath>
+      <HintPath>$(GameDir)\I Am Your Beast_Data\Managed\AudioTextSynchronizer.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\I Am Your Beast_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+      <HintPath>$(GameDir)\I Am Your Beast_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.ImageConversionModule">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\I Am Your Beast_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
+      <HintPath>$(GameDir)\I Am Your Beast_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.AudioModule">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\I Am Your Beast_Data\Managed\UnityEngine.AudioModule.dll</HintPath>
+      <HintPath>$(GameDir)\I Am Your Beast_Data\Managed\UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
     </Reference> 
     <Reference Include="UnityEngine.UnityWebRequestWWWModule">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\I Am Your Beast_Data\Managed\UnityEngine.UnityWebRequestWWWModule.dll</HintPath>
+      <HintPath>$(GameDir)\I Am Your Beast_Data\Managed\UnityEngine.UnityWebRequestWWWModule.dll</HintPath>
+      <Private>false</Private>
     </Reference> 
     <Reference Include="UnityEngine.UnityWebRequestModule">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\I Am Your Beast_Data\Managed\UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <HintPath>$(GameDir)\I Am Your Beast_Data\Managed\UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.UnityWebRequestAudioModule">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\I Am Your Beast_Data\Managed\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
+      <HintPath>$(GameDir)\I Am Your Beast_Data\Managed\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
+      <Private>false</Private>
     </Reference> 
     <Reference Include="UnityEngine.UIModule">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\I Am Your Beast\I Am Your Beast_Data\Managed\UnityEngine.UIModule.dll</HintPath>
+      <HintPath>$(GameDir)\I Am Your Beast_Data\Managed\UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
     </Reference> 
   </ItemGroup>
-<ItemGroup>
-  <Reference Include="Microsoft.CSharp" />
-</ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
 
+  <Target Name="OpenModFolderAfterBuild" AfterTargets="Build" Condition="'$(OpenModFolderAfterBuild)' == 'true'">
+    <Exec Command="cmd /c start &quot;&quot; &quot;$(TargetDir)&quot;" ContinueOnError="true" />
+  </Target>
+
+  <Import Project="GameDir.props" Condition="Exists('GameDir.props')" />
 </Project>

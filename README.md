@@ -18,6 +18,23 @@ Mod for I Am Your Beast that allows localizing the interface, adds audio and fon
 2. 📂 Copy the `IAmYourTranslator.dll` file to the `BepInEx/plugins` folder in the game directory
 3. 🎮 Launch the game - the mod activates automatically!
 
+## 🛠️ Quick build setup (FOR DEVELOPERS)
+
+There are two options:
+
+1. Local config file (recommended):
+   - Copy `GameDir.props.example` to `GameDir.props`
+   - Edit `GameDir.props` to set the real game folder path
+   - This does not modify `IAmYourTranslator.csproj` and is convenient for local builds
+
+2. Directly in the build command:
+   - Set the game path via MSBuild: `dotnet build --configuration Debug /p:GameDir="C:\Path\To\I Am Your Beast"`
+   - Or edit the `<GameDir>` property in `IAmYourTranslator.csproj`
+
+If the game path is missing or incorrect, the build will display a clear error telling you to set `GameDir` to the game folder path.
+
+After a successful build, the mod output folder will open automatically.
+
 ## 📋 Requirements
 
 | Component      | Version          | Description              |
