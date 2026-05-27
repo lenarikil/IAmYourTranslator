@@ -7,6 +7,8 @@ using BepInEx;
 using BepInEx.Logging;
 using UnityEngine;
 using IAmYourTranslator;
+using IAmYourTranslator.Harmony_Patches;
+using IAmYourTranslator.HarmonyPatches;
 
 namespace IAmYourTranslator.json
 {
@@ -44,6 +46,9 @@ namespace IAmYourTranslator.json
         public static string CurrentLanguageName { get; private set; }
         public static JsonFormat.Metadata CurrentMetadata { get; private set; }
         public static LanguageSummary CurrentSummary { get; private set; }
+
+        public static event Action<string> OnLanguageLoaded;
+        public static event Action OnLanguageUnloaded;
 
         // Folder where we store JSONs (under Paths.ConfigPath)
         // By default: <BepInEx>/config/IAmYourTranslator/languages/<code>/
@@ -184,8 +189,10 @@ namespace IAmYourTranslator.json
 
                 Logging.Info($"[LanguageManager] Loaded language '{CurrentLanguageName}' from {paths.JsonPath}");
 
-                // Invalidate cache after successful load
+                CommonFunctions.ClearAllCaches(clearReverseLookup: false, destroyTextureAssets: false);
+                ClearLanguageScopedPatchCaches();
                 InvalidateLanguagesCache();
+                RaiseLanguageLoaded(CurrentLanguageName);
 
                 // Re-apply language font immediately after successful load
                 Plugin.GetOrRecoverInstance()?.ApplyFontImmediateWithFallback();
@@ -198,6 +205,54 @@ namespace IAmYourTranslator.json
             }
         }
 
+        /// <summary>
+        /// Reads only the metadata field from a JSON file without deserializing the entire object.
+        /// Much faster than full deserialization for large JSON files.
+        /// </summary>
+        private static JsonFormat.Metadata ReadMetadataOnly(string jsonPath)
+        {
+            try
+            {
+                if (!File.Exists(jsonPath))
+                    return null;
+
+                using (var stream = File.OpenRead(jsonPath))
+                using (var reader = new StreamReader(stream))
+                using (var jsonReader = new JsonTextReader(reader))
+                {
+                    var serializer = JsonSerializer.Create(new JsonSerializerSettings
+                    {
+                        NullValueHandling = NullValueHandling.Ignore,
+                        MissingMemberHandling = MissingMemberHandling.Ignore
+                    });
+
+                    while (jsonReader.Read())
+                    {
+                        if (jsonReader.TokenType != JsonToken.PropertyName)
+                            continue;
+
+                        if (!string.Equals((string)jsonReader.Value, "metadata", StringComparison.Ordinal))
+                        {
+                            jsonReader.Skip();
+                            continue;
+                        }
+
+                        if (!jsonReader.Read())
+                            return null;
+
+                        return serializer.Deserialize<JsonFormat.Metadata>(jsonReader);
+                    }
+
+                    return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.Warn($"[LanguageManager] Failed to read metadata from {jsonPath}: {ex.Message}");
+                return null;
+            }
+        }
+
         public static void UnloadLanguage()
         {
             CommonFunctions.CaptureCurrentReverseLookupMap();
@@ -205,7 +260,45 @@ namespace IAmYourTranslator.json
             CurrentLanguageName = null;
             CurrentMetadata = null;
             CurrentSummary = null;
+            CommonFunctions.UITextureReplacer.RestoreAll();
+            CommonFunctions.ClearAllCaches(clearReverseLookup: false, destroyTextureAssets: true);
+            ClearLanguageScopedPatchCaches();
+            InvalidateLanguagesCache();
+            RaiseLanguageUnloaded();
             Logging.Info("[LanguageManager] Language unloaded. Using original game texts.");
+        }
+
+        private static void ClearLanguageScopedPatchCaches()
+        {
+            UILevelCompleteOverviewDetails_Patch.ClearLanguageCache();
+            UILevelCompleteOverviewCameraOption_Patch.ClearLanguageCache();
+            UILevelCompleteTimeScoreBar_Patch.ClearLanguageCache();
+            UILevelOverviewStartEndTag_Patch.ClearLanguageCache();
+            LevelMusicProfilePatch.ClearCache();
+        }
+
+        private static void RaiseLanguageLoaded(string langCode)
+        {
+            try
+            {
+                OnLanguageLoaded?.Invoke(langCode);
+            }
+            catch (Exception ex)
+            {
+                Logging.Warn($"[LanguageManager] OnLanguageLoaded handler failed: {ex.Message}");
+            }
+        }
+
+        private static void RaiseLanguageUnloaded()
+        {
+            try
+            {
+                OnLanguageUnloaded?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                Logging.Warn($"[LanguageManager] OnLanguageUnloaded handler failed: {ex.Message}");
+            }
         }
 
         private static LanguageSummary BuildSummary(LanguagePaths paths, JsonFormat.Metadata metaOverride = null)
@@ -215,8 +308,7 @@ namespace IAmYourTranslator.json
                 JsonFormat.Metadata meta = metaOverride;
                 if (meta == null && paths.HasJson)
                 {
-                    var raw = File.ReadAllText(paths.JsonPath);
-                    meta = JsonConvert.DeserializeObject<JsonFormat>(raw)?.metadata;
+                    meta = ReadMetadataOnly(paths.JsonPath);
                 }
 
                 meta ??= new JsonFormat.Metadata();

@@ -12,6 +12,12 @@ namespace IAmYourTranslator.Harmony_Patches
         // track added keys to avoid saving repeatedly
         private static readonly System.Collections.Generic.HashSet<string> _addedStartEndKeys = new System.Collections.Generic.HashSet<string>();
 
+        public static void ClearLanguageCache()
+        {
+            lock (_addedStartEndKeys)
+                _addedStartEndKeys.Clear();
+        }
+
         [HarmonyPostfix]
         public static void InitializePostfix(UILevelOverviewStartEndTag __instance, bool end, bool flip)
         {

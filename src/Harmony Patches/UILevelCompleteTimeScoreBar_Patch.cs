@@ -17,6 +17,15 @@ namespace IAmYourTranslator.Harmony_Patches
         // DIAGNOSTICS: ensure that the patch has been applied
         private static bool _patchApplied = false;
 
+        public static void ClearLanguageCache()
+        {
+            lock (_seenInstances)
+                _seenInstances.Clear();
+            lock (_addedFinalScreenKeys)
+                _addedFinalScreenKeys.Clear();
+            _patchApplied = false;
+        }
+
         // Translates the headers for time spent on the level and time that needs to be reduced to get a new rank on the results screen.
         // Category in JSON: "finalScreen"
         // Use Initialize() instead of Update() because Update() may be called only once or not called at all
@@ -271,6 +280,7 @@ namespace IAmYourTranslator.Harmony_Patches
             try
             {
                 if (__instance == null) return;
+                if (!LanguageManager.IsLoaded || LanguageManager.CurrentLanguage == null) return;
                 var dict = LanguageManager.CurrentLanguage.finalScreen;
                 if (dict == null || dict.Count == 0) return;
 
@@ -300,6 +310,7 @@ namespace IAmYourTranslator.Harmony_Patches
             try
             {
                 if (__instance == null) return;
+                if (!LanguageManager.IsLoaded || LanguageManager.CurrentLanguage == null) return;
                 var dict = LanguageManager.CurrentLanguage.finalScreen;
                 if (dict == null || dict.Count == 0) return;
 
@@ -345,6 +356,7 @@ namespace IAmYourTranslator.Harmony_Patches
             try
             {
                 if (__instance == null) return;
+                if (!LanguageManager.IsLoaded || LanguageManager.CurrentLanguage == null) return;
                 var dict = LanguageManager.CurrentLanguage.finalScreen;
                 if (dict == null || dict.Count == 0) return;
 

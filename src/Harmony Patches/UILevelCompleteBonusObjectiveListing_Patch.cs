@@ -15,7 +15,7 @@ namespace IAmYourTranslator.Harmony_Patches
         [HarmonyPostfix]
         public static void Postfix(UILevelCompleteBonusObjectiveListing __instance, LevelObjective objective, UILevelCompleteBonusObjectiveListing.CheckType checkType, UILevelCompleteScreen root, float bestTime)
         {
-            try
+            PatchHelper.SafeExecute(nameof(UILevelCompleteBonusObjectiveListing_Patch), () =>
             {
                 if (__instance == null)
                     return;
@@ -39,11 +39,7 @@ namespace IAmYourTranslator.Harmony_Patches
                     if (tmp == null) continue;
                     TMPFontReplacer.ApplyFontToTMP(tmp, font);
                 }
-            }
-            catch (Exception e)
-            {
-                Logging.Warn($"[UILevelCompleteBonusObjectiveListing_Patch] Error: {e}");
-            }
+            });
         }
     }
 }

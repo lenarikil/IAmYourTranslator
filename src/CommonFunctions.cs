@@ -66,6 +66,23 @@ namespace IAmYourTranslator
             findObjectsCacheTime = DateTime.MinValue;
         }
 
+        public static void ClearAllCaches(bool clearReverseLookup = true, bool destroyTextureAssets = false)
+        {
+            rootObjectCache.Clear();
+            lastRootCacheTime = DateTime.MinValue;
+            childCache.Clear();
+            lastChildCacheTime = DateTime.MinValue;
+            InvalidateFindObjectsCache();
+            OriginalUITextByComponent.Clear();
+            OriginalTMPTextByComponent.Clear();
+            PreviousHudMessage = null;
+
+            if (clearReverseLookup)
+                LastKnownReverseLookupMap = new Dictionary<string, string>(StringComparer.Ordinal);
+
+            UITextureReplacer.ClearCache(destroyTextureAssets);
+        }
+
         public static IEnumerator WaitforSeconds(float seconds)
         {
             yield return new WaitForSeconds(seconds);
@@ -515,23 +532,59 @@ namespace IAmYourTranslator
 
         public static class UITextureReplacer
         {
+            private sealed class CachedTexture
+            {
+                public Texture2D Texture;
+                public Sprite Sprite;
+                public DateTime LastWriteTimeUtc;
+            }
+
+            private sealed class OriginalImageState
+            {
+                public Sprite Sprite;
+                public Image.Type Type;
+                public bool PreserveAspect;
+                public bool FillCenter;
+                public Image.FillMethod FillMethod;
+                public float FillAmount;
+                public bool FillClockwise;
+                public int FillOrigin;
+            }
+
+            private static readonly Dictionary<string, CachedTexture> textureCache = new Dictionary<string, CachedTexture>(StringComparer.OrdinalIgnoreCase);
+
             // Using WeakReference to allow Unity objects to be garbage collected
             private static readonly Dictionary<int, WeakReference<Texture>> originalRawTexturesByInstId = new Dictionary<int, WeakReference<Texture>>();
-            private static readonly Dictionary<int, WeakReference<Sprite>> originalImageSpritesByInstId = new Dictionary<int, WeakReference<Sprite>>();
+            private static readonly Dictionary<int, WeakReference<OriginalImageState>> originalImageStatesByInstId = new Dictionary<int, WeakReference<OriginalImageState>>();
 
             public static Texture2D LoadTextureFromFile(string filePath, bool invertAlpha = false)
             {
                 if (!File.Exists(filePath))
                 {
-                    Debug.LogError($"[UITextureReplacer] File not found: {filePath}");
+                    Logging.Warn($"[UITextureReplacer] File not found: {filePath}");
                     return null;
+                }
+
+                var lastWriteTimeUtc = File.GetLastWriteTimeUtc(filePath);
+                string cacheKey = $"{filePath}:{invertAlpha}";
+                if (textureCache.TryGetValue(cacheKey, out var cached))
+                {
+                    if (cached.Texture != null && cached.LastWriteTimeUtc == lastWriteTimeUtc)
+                    {
+                        Logging.Info($"[UITextureReplacer] Texture cache hit: {Path.GetFileName(filePath)} ({cached.Texture.width}x{cached.Texture.height}, invertAlpha={invertAlpha})");
+                        return cached.Texture;
+                    }
+
+                    DestroyCachedTexture(cached, destroyTexture: true, onlyIfUnused: true);
+                    textureCache.Remove(cacheKey);
+                    Logging.Info($"[UITextureReplacer] Texture cache stale: {Path.GetFileName(filePath)} (invertAlpha={invertAlpha})");
                 }
 
                 byte[] data = File.ReadAllBytes(filePath);
                 Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
                 if (!tex.LoadImage(data))
                 {
-                    Debug.LogError($"[UITextureReplacer] Failed to load image: {filePath}");
+                    Logging.Warn($"[UITextureReplacer] Failed to load image: {filePath}");
                     return null;
                 }
 
@@ -542,7 +595,37 @@ namespace IAmYourTranslator
                 if (invertAlpha)
                     InvertAlphaMakeWhiteBackground(tex);
 
+                textureCache[cacheKey] = new CachedTexture
+                {
+                    Texture = tex,
+                    LastWriteTimeUtc = lastWriteTimeUtc
+                };
+                Logging.Info($"[UITextureReplacer] Texture cache miss/load: {Path.GetFileName(filePath)} ({tex.width}x{tex.height}, invertAlpha={invertAlpha})");
                 return tex;
+            }
+
+            private static Sprite GetOrCreateSprite(string filePath, bool invertAlpha, Texture2D tex)
+            {
+                if (tex == null)
+                    return null;
+
+                string cacheKey = $"{filePath}:{invertAlpha}";
+                if (textureCache.TryGetValue(cacheKey, out var cached) && cached.Texture == tex && cached.Sprite != null)
+                    return cached.Sprite;
+
+                Sprite sprite = Sprite.Create(
+                    tex,
+                    new Rect(0, 0, tex.width, tex.height),
+                    new Vector2(0.5f, 0.5f),
+                    100f
+                );
+
+                sprite.name = tex.name;
+
+                if (textureCache.TryGetValue(cacheKey, out cached))
+                    cached.Sprite = sprite;
+
+                return sprite;
             }
 
             private static void CacheOriginal(RawImage raw)
@@ -563,10 +646,20 @@ namespace IAmYourTranslator
                     return;
 
                 int instId = img.GetInstanceID();
-                if (originalImageSpritesByInstId.ContainsKey(instId))
+                if (originalImageStatesByInstId.ContainsKey(instId))
                     return;
 
-                originalImageSpritesByInstId[instId] = new WeakReference<Sprite>(img.sprite);
+                originalImageStatesByInstId[instId] = new WeakReference<OriginalImageState>(new OriginalImageState
+                {
+                    Sprite = img.sprite,
+                    Type = img.type,
+                    PreserveAspect = img.preserveAspect,
+                    FillCenter = img.fillCenter,
+                    FillMethod = img.fillMethod,
+                    FillAmount = img.fillAmount,
+                    FillClockwise = img.fillClockwise,
+                    FillOrigin = img.fillOrigin
+                });
             }
 
             private static void CleanupTextureCaches()
@@ -582,14 +675,99 @@ namespace IAmYourTranslator
                     originalRawTexturesByInstId.Remove(id);
 
                 var deadImgIds = new List<int>();
-                foreach (var kv in originalImageSpritesByInstId)
+                foreach (var kv in originalImageStatesByInstId)
                 {
                     if (!kv.Value.TryGetTarget(out _))
                         deadImgIds.Add(kv.Key);
                 }
 
                 foreach (var id in deadImgIds)
-                    originalImageSpritesByInstId.Remove(id);
+                    originalImageStatesByInstId.Remove(id);
+            }
+
+            /// <summary>
+            /// Clears the texture cache. Called when unloading a language to prevent memory leaks.
+            /// </summary>
+            public static void ClearCache(bool destroyUnityObjects = true)
+            {
+                if (destroyUnityObjects)
+                {
+                    foreach (var cached in textureCache.Values)
+                        DestroyCachedTexture(cached, destroyTexture: true, onlyIfUnused: true);
+                }
+
+                Logging.Info($"[UITextureReplacer] Cleared texture cache (entries={textureCache.Count}, destroyUnityObjects={destroyUnityObjects}).");
+                textureCache.Clear();
+            }
+
+            private static void DestroyCachedTexture(CachedTexture cached, bool destroyTexture, bool onlyIfUnused)
+            {
+                if (cached == null)
+                    return;
+
+                if (cached.Sprite != null)
+                {
+                    if (!onlyIfUnused || !IsSpriteInUse(cached.Sprite))
+                    {
+                        string spriteName = cached.Sprite.name;
+                        UnityEngine.Object.Destroy(cached.Sprite);
+                        Logging.Info($"[UITextureReplacer] Destroyed cached sprite '{spriteName}'.");
+                        cached.Sprite = null;
+                    }
+                    else
+                    {
+                        Logging.Info($"[UITextureReplacer] Kept cached sprite '{cached.Sprite.name}' alive because it is still assigned to UI.");
+                    }
+                }
+
+                if (destroyTexture && cached.Texture != null)
+                {
+                    if (!onlyIfUnused || !IsTextureInUse(cached.Texture))
+                    {
+                        string textureName = cached.Texture.name;
+                        UnityEngine.Object.Destroy(cached.Texture);
+                        Logging.Info($"[UITextureReplacer] Destroyed cached texture '{textureName}'.");
+                        cached.Texture = null;
+                    }
+                    else
+                    {
+                        Logging.Info($"[UITextureReplacer] Kept cached texture '{cached.Texture.name}' alive because it is still assigned to UI.");
+                    }
+                }
+            }
+
+            private static bool IsSpriteInUse(Sprite sprite)
+            {
+                if (sprite == null)
+                    return false;
+
+                foreach (var img in UnityEngine.Object.FindObjectsOfType<Image>(true))
+                {
+                    if (img != null && img.sprite == sprite)
+                        return true;
+                }
+
+                return false;
+            }
+
+            private static bool IsTextureInUse(Texture2D texture)
+            {
+                if (texture == null)
+                    return false;
+
+                foreach (var raw in UnityEngine.Object.FindObjectsOfType<RawImage>(true))
+                {
+                    if (raw != null && raw.texture == texture)
+                        return true;
+                }
+
+                foreach (var img in UnityEngine.Object.FindObjectsOfType<Image>(true))
+                {
+                    if (img != null && img.sprite != null && img.sprite.texture == texture)
+                        return true;
+                }
+
+                return false;
             }
 
             public static bool RestoreOn(GameObject target)
@@ -608,14 +786,14 @@ namespace IAmYourTranslator
                 }
 
                 Image img = target.GetComponent<Image>();
-                if (img != null && originalImageSpritesByInstId.TryGetValue(img.GetInstanceID(), out var imgWeakRef) && imgWeakRef.TryGetTarget(out var originalSprite))
+                if (img != null && originalImageStatesByInstId.TryGetValue(img.GetInstanceID(), out var imgWeakRef) && imgWeakRef.TryGetTarget(out var originalState))
                 {
-                    img.sprite = originalSprite;
+                    RestoreImageState(img, originalState);
                     restored = true;
                 }
 
                 if (restored)
-                    Debug.Log($"[UITextureReplacer] Restored original texture/sprite on '{target.name}'.");
+                    Logging.Info($"[UITextureReplacer] Restored original texture/sprite on '{GetHierarchyPath(target.transform)}'.");
 
                 return restored;
             }
@@ -625,43 +803,38 @@ namespace IAmYourTranslator
                 CleanupTextureCaches();
                 int restored = 0;
 
+                var rawImagesById = UnityEngine.Object.FindObjectsOfType<RawImage>(true)
+                    .Where(raw => raw != null)
+                    .ToDictionary(raw => raw.GetInstanceID());
+                var imagesById = UnityEngine.Object.FindObjectsOfType<Image>(true)
+                    .Where(img => img != null)
+                    .ToDictionary(img => img.GetInstanceID());
+
                 foreach (var kv in originalRawTexturesByInstId.ToList())
                 {
                     if (!kv.Value.TryGetTarget(out var originalTexture))
                         continue;
 
-                    // Find the RawImage by instance ID
-                    var rawImages = UnityEngine.Object.FindObjectsOfType<RawImage>(true);
-                    foreach (var raw in rawImages)
+                    if (rawImagesById.TryGetValue(kv.Key, out var raw))
                     {
-                        if (raw.GetInstanceID() == kv.Key)
-                        {
-                            raw.texture = originalTexture;
-                            restored++;
-                            break;
-                        }
+                        raw.texture = originalTexture;
+                        restored++;
                     }
                 }
 
-                foreach (var kv in originalImageSpritesByInstId.ToList())
+                foreach (var kv in originalImageStatesByInstId.ToList())
                 {
-                    if (!kv.Value.TryGetTarget(out var originalSprite))
+                    if (!kv.Value.TryGetTarget(out var originalState))
                         continue;
 
-                    // Find the Image by instance ID
-                    var images = UnityEngine.Object.FindObjectsOfType<Image>(true);
-                    foreach (var img in images)
+                    if (imagesById.TryGetValue(kv.Key, out var img))
                     {
-                        if (img.GetInstanceID() == kv.Key)
-                        {
-                            img.sprite = originalSprite;
-                            restored++;
-                            break;
-                        }
+                        RestoreImageState(img, originalState);
+                        restored++;
                     }
                 }
 
-                Debug.Log($"[UITextureReplacer] Restored original UI textures/sprites on {restored} components.");
+                Logging.Info($"[UITextureReplacer] Restored original UI textures/sprites on {restored} components.");
             }
 
             // Inverts alpha and turns the background white
@@ -689,7 +862,7 @@ namespace IAmYourTranslator
             {
                 if (target == null)
                 {
-                    Debug.LogWarning("[UITextureReplacer] Target GameObject is null.");
+                    Logging.Warn("[UITextureReplacer] Target GameObject is null.");
                     return;
                 }
 
@@ -700,7 +873,7 @@ namespace IAmYourTranslator
                 Image img = target.GetComponent<Image>();
                 if (raw == null && img == null)
                 {
-                    Debug.LogWarning($"[UITextureReplacer] GameObject '{target.name}' has no Image or RawImage component.");
+                    Logging.Warn($"[UITextureReplacer] GameObject '{GetHierarchyPath(target.transform)}' has no Image or RawImage component.");
                     return;
                 }
 
@@ -712,7 +885,7 @@ namespace IAmYourTranslator
 
                 if (!File.Exists(filePath))
                 {
-                    Debug.LogWarning($"[UITextureReplacer] Texture file not found for '{target.name}': {filePath}. Restoring original.");
+                    Logging.Warn($"[UITextureReplacer] Texture file not found for '{GetHierarchyPath(target.transform)}': {filePath}. Restoring original.");
                     RestoreOn(target);
                     return;
                 }
@@ -728,23 +901,55 @@ namespace IAmYourTranslator
                 {
                     CacheOriginal(raw);
                     raw.texture = tex;
-                    Debug.Log($"[UITextureReplacer] Applied texture '{tex.name}' to RawImage on '{target.name}' (invertAlpha={invertAlpha}).");
+                    Logging.Info($"[UITextureReplacer] Applied texture '{tex.name}' ({tex.width}x{tex.height}) to RawImage '{GetHierarchyPath(target.transform)}' rect={FormatRect(raw.rectTransform.rect)} invertAlpha={invertAlpha}.");
                     return;
                 }
 
                 CacheOriginal(img);
 
-                Sprite sprite = Sprite.Create(
-                    tex,
-                    new Rect(0, 0, tex.width, tex.height),
-                    new Vector2(0.5f, 0.5f),
-                    100f
-                );
-
-                sprite.name = tex.name;
+                Sprite sprite = GetOrCreateSprite(filePath, invertAlpha, tex);
+                img.type = Image.Type.Simple;
+                img.preserveAspect = true;
+                img.fillCenter = true;
                 img.sprite = sprite;
 
-                Debug.Log($"[UITextureReplacer] Applied sprite '{sprite.name}' to Image on '{target.name}' (invertAlpha={invertAlpha}).");
+                Logging.Info($"[UITextureReplacer] Applied sprite '{sprite.name}' ({tex.width}x{tex.height}) to Image '{GetHierarchyPath(target.transform)}' type={img.type} preserveAspect={img.preserveAspect} rect={FormatRect(img.rectTransform.rect)} invertAlpha={invertAlpha}.");
+            }
+
+            private static void RestoreImageState(Image img, OriginalImageState state)
+            {
+                if (img == null || state == null)
+                    return;
+
+                img.sprite = state.Sprite;
+                img.type = state.Type;
+                img.preserveAspect = state.PreserveAspect;
+                img.fillCenter = state.FillCenter;
+                img.fillMethod = state.FillMethod;
+                img.fillAmount = state.FillAmount;
+                img.fillClockwise = state.FillClockwise;
+                img.fillOrigin = state.FillOrigin;
+            }
+
+            private static string GetHierarchyPath(Transform transform)
+            {
+                if (transform == null)
+                    return "<null>";
+
+                var names = new Stack<string>();
+                var current = transform;
+                while (current != null)
+                {
+                    names.Push(current.name);
+                    current = current.parent;
+                }
+
+                return string.Join("/", names.ToArray());
+            }
+
+            private static string FormatRect(Rect rect)
+            {
+                return $"{rect.width:0.##}x{rect.height:0.##}";
             }
         }
 

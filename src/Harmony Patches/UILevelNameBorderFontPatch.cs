@@ -13,7 +13,7 @@ namespace IAmYourTranslator.HarmonyPatches
         [HarmonyPostfix]
         public static void Postfix(UILevelNameBorder __instance)
         {
-            try
+            PatchHelper.SafeExecute(nameof(UILevelNameBorderFontPatch), () =>
             {
                 // Use globally cached font or load as fallback
                 var tmpFont = Plugin.GlobalTMPFont;
@@ -30,11 +30,7 @@ namespace IAmYourTranslator.HarmonyPatches
                 // Safely replace fonts
                 TMPFontReplacer.ApplyFontToTMP(levelNumber, tmpFont);
                 TMPFontReplacer.ApplyFontToTMP(levelName, tmpFont);
-            }
-            catch (Exception e)
-            {
-                Logging.Warn($"[UILevelNameBorderFontPatch] Error when replacing font: {e.Message}");
-            }
+            });
         }
     }
 }

@@ -12,6 +12,12 @@ namespace IAmYourTranslator.Harmony_Patches
         // track added keys to avoid saving repeatedly
         private static readonly System.Collections.Generic.HashSet<string> _addedKillKeys = new System.Collections.Generic.HashSet<string>();
 
+        public static void ClearLanguageCache()
+        {
+            lock (_addedKillKeys)
+                _addedKillKeys.Clear();
+        }
+
         [HarmonyPostfix]
         public static void InitializePostfix(UILevelCompleteOverviewCameraOption __instance)
         {

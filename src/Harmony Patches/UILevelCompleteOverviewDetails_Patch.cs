@@ -20,6 +20,12 @@ namespace IAmYourTranslator.Harmony_Patches
         // Track added keys to avoid saving repeatedly
         private static readonly System.Collections.Generic.HashSet<string> _addedOverviewDetailsKeys = new System.Collections.Generic.HashSet<string>();
 
+        public static void ClearLanguageCache()
+        {
+            lock (_addedOverviewDetailsKeys)
+                _addedOverviewDetailsKeys.Clear();
+        }
+
         [HarmonyPostfix]
         public static void StartPostfix(UILevelCompleteOverviewDetails __instance)
         {

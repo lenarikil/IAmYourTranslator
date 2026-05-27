@@ -12,7 +12,7 @@ namespace IAmYourTranslator.Harmony_Patches
         [HarmonyPostfix]
         public static void Postfix(UILevelSelectCategoryStat __instance)
         {
-            try
+            PatchHelper.SafeExecute(nameof(UILevelSelectCategoryStat_Patch), () =>
             {
                 if (__instance == null) return;
 
@@ -34,11 +34,7 @@ namespace IAmYourTranslator.Harmony_Patches
                 var font = TMPFontReplacer.GetCachedFont(Plugin.GlobalFontPath);
                 if (font != null)
                     TMPFontReplacer.ApplyFontToTMP(header, font);
-            }
-            catch (Exception e)
-            {
-                Logging.Warn($"[UILevelSelectCategoryStat_Patch] Error: {e}");
-            }
+            });
         }
     }
 }

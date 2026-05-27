@@ -12,7 +12,7 @@ namespace IAmYourTranslator.Harmony_Patches
         [HarmonyPostfix]
         public static void Postfix(HUDObjectiveListing __instance)
         {
-            try
+            PatchHelper.SafeExecute(nameof(HUDObjectiveListing_Font_Patch), () =>
             {
                 if (__instance == null) return;
 
@@ -30,11 +30,7 @@ namespace IAmYourTranslator.Harmony_Patches
                     if (!Equals(tmp.font, font))
                         TMPFontReplacer.ApplyFontToTMP(tmp, font);
                 }
-            }
-            catch (Exception e)
-            {
-                Logging.Warn($"[HUDObjectiveListing_Font_Patch] Error: {e}");
-            }
+            });
         }
     }
 }

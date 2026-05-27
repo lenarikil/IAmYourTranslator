@@ -11,6 +11,11 @@ namespace IAmYourTranslator.Harmony_Patches
     [HarmonyPatch(typeof(HUDObjectiveListing), "Update")]
     public static class HUDObjectiveListing_Translate_Patch
     {
+        // Static regex compiled once for performance (P0.3 optimization: moved from loop)
+        private static readonly Regex CounterRegex = new Regex(
+            "^(.*?)(\\s*[:：]?\\s*(?:\\[[0-9]+\\/[0-9]+\\]|\\([0-9]+\\/[0-9]+\\)|[0-9]+\\/[0-9]+))$",
+            RegexOptions.Compiled);
+
         [HarmonyPostfix]
         public static void Postfix(HUDObjectiveListing __instance)
         {
@@ -56,8 +61,7 @@ namespace IAmYourTranslator.Harmony_Patches
                     }
                     
                     // Handle trailing counter patterns, e.g. "Kill Enemies: [0/9]", "Collect Items (0/5)", "Do X: 0/3"
-                    var counterRegex = new Regex("^(.*?)(\\s*[:：]?\\s*(?:\\[[0-9]+\\/[0-9]+\\]|\\([0-9]+\\/[0-9]+\\)|[0-9]+\\/[0-9]+))$", RegexOptions.Compiled);
-                    var m = counterRegex.Match(current);
+                    var m = CounterRegex.Match(current);
                     string baseText = current;
                     string suffix = null;
                     if (m.Success)

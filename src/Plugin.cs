@@ -32,6 +32,7 @@ namespace IAmYourTranslator
         public static ConfigEntry<bool> EnableTextureReplacementEntry;
         public static ConfigEntry<bool> EnableAudioDebugLogsEntry;
         public static ConfigEntry<bool> EnableExperimentalRadioAudioPatchesEntry;
+        public static PluginConfig ConfigEntries;
         private static readonly Dictionary<int, AudioClip> OriginalClipBySourceId = new Dictionary<int, AudioClip>();
 
         // Logo paths for texture replacement
@@ -104,7 +105,7 @@ namespace IAmYourTranslator
             ApplyFontImmediateWithFallback();
 
             GameObject canvasObj = GetInactiveRootObject("Canvas");
-            Core.HandleSceneSwitch(scene, ref canvasObj);
+            Logging.Info($"Current scene: {GetCurrentSceneName()}");
             TextSynchronizerPatch.PreloadSceneReplacements();
             LevelMusicProfilePatch.PreloadLevelMusic();
 
@@ -125,8 +126,6 @@ namespace IAmYourTranslator
                     RefreshTexturesInCurrentScene();
                 }
 
-                // Apply post-init fixes immediately (not via coroutine)
-                Core.ApplyPostInitFixes(canvasObj);
             }
 
             // Re-apply language/global font after UI is instantiated in the new scene
@@ -625,12 +624,12 @@ namespace IAmYourTranslator
 
             try
             {
-                // Config bootstrap
-                SelectedLanguageEntry = Config.Bind("General", "SelectedLanguage", "", "Language code to load (folder name inside languages/). Leave empty for vanilla.");
-                EnableAudioReplacementEntry = Config.Bind("General", "EnableAudioReplacement", true, "If true, custom language audio will replace originals when available.");
-                EnableTextureReplacementEntry = Config.Bind("General", "EnableTextureReplacement", true, "If true, custom language textures will replace originals when available.");
-                EnableAudioDebugLogsEntry = Config.Bind("Debug", "EnableAudioDebugLogs", false, "If true, verbose AudioSource.Play/OneShot logging is enabled.");
-                EnableExperimentalRadioAudioPatchesEntry = Config.Bind("Experimental", "EnableExperimentalRadioAudioPatches", false, "If true, enables aggressive radio-camera audio patches (may cause instability).");
+                ConfigEntries = new PluginConfig(Config);
+                SelectedLanguageEntry = ConfigEntries.SelectedLanguage;
+                EnableAudioReplacementEntry = ConfigEntries.EnableAudioReplacement;
+                EnableTextureReplacementEntry = ConfigEntries.EnableTextureReplacement;
+                EnableAudioDebugLogsEntry = ConfigEntries.EnableAudioDebugLogs;
+                EnableExperimentalRadioAudioPatchesEntry = ConfigEntries.EnableExperimentalRadioAudioPatches;
 
                 TextSynchronizerPatch.SetCoroutineHost(this);
                 Logging.Warn("--- Initializing Language Manager ---");
