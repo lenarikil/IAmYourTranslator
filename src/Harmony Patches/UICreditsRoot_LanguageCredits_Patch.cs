@@ -4,7 +4,6 @@ using System.IO;
 using System.Reflection;
 using HarmonyLib;
 using IAmYourTranslator.json;
-using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using static IAmYourTranslator.CommonFunctions;
@@ -25,91 +24,8 @@ namespace IAmYourTranslator.HarmonyPatches
         private static readonly FieldInfo CurrentItemField =
             AccessTools.Field(typeof(UICreditsRoot), "currentItem");
 
-        private static readonly FieldInfo FadingOutField =
-            AccessTools.Field(typeof(UICreditsRoot), "fadingOut");
-
-        private static readonly FieldInfo ImageRefField =
-            AccessTools.Field(typeof(UICreditsRoot), "imageRef");
-
-        private static readonly FieldInfo FeatureImageField =
-            AccessTools.Field(typeof(UICreditsRoot), "featureImage");
-
-        private static readonly FieldInfo ListImageRefField =
-            AccessTools.Field(typeof(UICreditsList), "imageRef");
-
-        private static readonly FieldInfo ListHeaderTextRefField =
-            AccessTools.Field(typeof(UICreditsList), "headerText");
-
-        private static readonly MethodInfo StartFadeOutMethod =
-            AccessTools.Method(typeof(UICreditsRoot), "StartFadeOut");
-
         private static UICreditItem LangCreditsImageItem;
         private static UICreditItemNames LangCreditsNamesItem;
-
-        private sealed class State
-        {
-            public bool SpaceQueued;
-        }
-
-        private static readonly Dictionary<int, State> States = new Dictionary<int, State>();
-
-        [HarmonyPatch(typeof(UICreditsList), "LateUpdate")]
-        public static class ListLateUpdatePatch
-        {
-            [HarmonyPrefix]
-            public static bool Prefix(UICreditsList __instance)
-            {
-                UICreditsRoot root = __instance.GetComponentInParent<UICreditsRoot>();
-                if (root == null)
-                    return true;
-
-                bool fadingOut = (bool)(FadingOutField?.GetValue(root) ?? false);
-                if (fadingOut)
-                    return true;
-
-                ForceImageAlpha(ListImageRefField?.GetValue(__instance) as RawImage);
-                ForceImageAlpha(ImageRefField?.GetValue(root) as RawImage);
-
-                RawImage featureImage = FeatureImageField?.GetValue(root) as RawImage;
-                if (featureImage != null)
-                    ForceImageAlpha(featureImage);
-
-                TMP_Text headerText = ListHeaderTextRefField?.GetValue(__instance) as TMP_Text;
-                if (headerText != null)
-                {
-                    Transform headerParent = headerText.transform.parent;
-                    if (headerParent != null)
-                    {
-                        foreach (Image img in headerParent.GetComponentsInChildren<Image>(true))
-                        {
-                            ForceImageColor(img);
-                        }
-                    }
-                }
-
-                return true;
-            }
-
-            private static void ForceImageAlpha(RawImage img)
-            {
-                if (img != null && img.color.a < 1f)
-                {
-                    Color c = img.color;
-                    c.a = 1f;
-                    img.color = c;
-                }
-            }
-
-            private static void ForceImageColor(Image img)
-            {
-                if (img != null && img.color.a < 1f)
-                {
-                    Color c = img.color;
-                    c.a = 1f;
-                    img.color = c;
-                }
-            }
-        }
 
         [HarmonyPrefix]
         [HarmonyPatch("PlayFromStart")]
@@ -135,6 +51,10 @@ namespace IAmYourTranslator.HarmonyPatches
                 if (items == null)
                     return;
 
+                int insertIndex = 2;
+                if (items.Length < insertIndex)
+                    insertIndex = items.Length;
+
                 string[] lines = creditsText.Split('\n');
                 Texture2D texture = LoadLanguageCreditsTexture();
 
@@ -146,19 +66,21 @@ namespace IAmYourTranslator.HarmonyPatches
                     LangCreditsNamesItem = CreateLangCreditsNamesItem(lines);
 
                     newItems = new UICreditItem[items.Length + 2];
-                    newItems[0] = LangCreditsImageItem;
-                    newItems[1] = LangCreditsNamesItem;
-                    Array.Copy(items, 0, newItems, 2, items.Length);
-                    Logging.Info($"[UICreditsRoot] Injected langCredits image + names ({lines.Length} lines).");
+                    Array.Copy(items, 0, newItems, 0, insertIndex);
+                    newItems[insertIndex] = LangCreditsImageItem;
+                    newItems[insertIndex + 1] = LangCreditsNamesItem;
+                    Array.Copy(items, insertIndex, newItems, insertIndex + 2, items.Length - insertIndex);
+                    Logging.Info($"[UICreditsRoot] Injected langCredits image + names at position {insertIndex}.");
                 }
                 else
                 {
                     LangCreditsNamesItem = CreateLangCreditsNamesItem(lines);
 
                     newItems = new UICreditItem[items.Length + 1];
-                    newItems[0] = LangCreditsNamesItem;
-                    Array.Copy(items, 0, newItems, 1, items.Length);
-                    Logging.Info($"[UICreditsRoot] Injected langCredits names ({lines.Length} lines), no image.");
+                    Array.Copy(items, 0, newItems, 0, insertIndex);
+                    newItems[insertIndex] = LangCreditsNamesItem;
+                    Array.Copy(items, insertIndex, newItems, insertIndex + 1, items.Length - insertIndex);
+                    Logging.Info($"[UICreditsRoot] Injected langCredits names at position {insertIndex}, no image.");
                 }
 
                 CreditsItemsField?.SetValue(__instance, newItems);
@@ -195,43 +117,6 @@ namespace IAmYourTranslator.HarmonyPatches
             catch (Exception e)
             {
                 Logging.Warn($"[UICreditsRoot] RefreshDisplayPostfix error: {e}");
-            }
-        }
-
-        [HarmonyPostfix]
-        [HarmonyPatch("Update")]
-        public static void UpdatePostfix(UICreditsRoot __instance)
-        {
-            try
-            {
-                if (__instance == null)
-                    return;
-
-                int id = __instance.GetInstanceID();
-                if (!States.TryGetValue(id, out State state))
-                {
-                    state = new State();
-                    States[id] = state;
-                }
-
-                if (UnityEngine.Input.GetKeyDown(KeyCode.Space))
-                {
-                    if (state.SpaceQueued)
-                        return;
-                    state.SpaceQueued = true;
-
-                    bool fadingOut = (bool)(FadingOutField?.GetValue(__instance) ?? false);
-                    if (!fadingOut)
-                        StartFadeOutMethod?.Invoke(__instance, null);
-                    return;
-                }
-
-                if (!UnityEngine.Input.GetKey(KeyCode.Space))
-                    state.SpaceQueued = false;
-            }
-            catch (Exception e)
-            {
-                Logging.Warn($"[UICreditsRoot] UpdatePostfix error: {e}");
             }
         }
 
