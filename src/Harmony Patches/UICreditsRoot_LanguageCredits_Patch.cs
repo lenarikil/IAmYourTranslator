@@ -51,7 +51,7 @@ namespace IAmYourTranslator.HarmonyPatches
                 if (items == null)
                     return;
 
-                int insertIndex = 2;
+                int insertIndex = string.Equals(GetCurrentSceneName(), "#027_Special_EndCredits", StringComparison.Ordinal) ? 3 : 2;
                 if (items.Length < insertIndex)
                     insertIndex = items.Length;
 

@@ -28,9 +28,9 @@ namespace IAmYourTranslator.HarmonyPatches
         private static bool? _cachedShouldReplaceAudio;
         private static string _cachedAudioDir;
 
-        private static bool IsDebugLoggingEnabled()
+        private static bool IsMusicProfileLoggingEnabled()
         {
-            return Plugin.EnableAudioDebugLogsEntry != null && Plugin.EnableAudioDebugLogsEntry.Value;
+            return Plugin.EnableMusicProfileDebugLogsEntry != null && Plugin.EnableMusicProfileDebugLogsEntry.Value;
         }
 
         private static bool ShouldReplaceAudio()
@@ -42,7 +42,7 @@ namespace IAmYourTranslator.HarmonyPatches
             bool enabled = Plugin.EnableAudioReplacementEntry != null && Plugin.EnableAudioReplacementEntry.Value;
             bool languageLoaded = LanguageManager.CurrentSummary != null;
             
-            if (IsDebugLoggingEnabled())
+            if (IsMusicProfileLoggingEnabled())
                 Debug($"[MusicReplace] ShouldReplaceAudio: enabled={enabled}, languageLoaded={languageLoaded}");
             
             bool result = enabled && languageLoaded;
@@ -107,17 +107,17 @@ namespace IAmYourTranslator.HarmonyPatches
             if (string.IsNullOrEmpty(audioDir))
                 return false;
 
-            if (IsDebugLoggingEnabled())
+            if (IsMusicProfileLoggingEnabled())
                 Debug($"[MusicReplace] Looking for replacement in '{audioDir}' for clip '{clipName}'");
             
             if (!AudioClipReplacer.TryFindReplacementAudioFile(audioDir, clipName, out string replacementPath))
             {
-                if (IsDebugLoggingEnabled())
+                if (IsMusicProfileLoggingEnabled())
                     Debug($"[MusicReplace] TryFindReplacementAudioFile returned false for '{clipName}'");
                 return false;
             }
 
-            if (IsDebugLoggingEnabled())
+            if (IsMusicProfileLoggingEnabled())
                 Debug($"[MusicReplace] Found replacement path: '{replacementPath}'");
 
             // Проверяем кэш
@@ -125,7 +125,7 @@ namespace IAmYourTranslator.HarmonyPatches
             {
                 if (replacementClip != null)
                 {
-                    if (IsDebugLoggingEnabled())
+                    if (IsMusicProfileLoggingEnabled())
                         Info($"[MusicReplace] Using cached clip for '{clipName}' -> '{replacementClip.name}'");
                     return true;
                 }
@@ -207,7 +207,7 @@ namespace IAmYourTranslator.HarmonyPatches
                     clip.name = Path.GetFileNameWithoutExtension(filePath);
                     _clipCache[filePath] = clip;
                     
-                    if (IsDebugLoggingEnabled())
+                    if (IsMusicProfileLoggingEnabled())
                         Info($"[MusicReplace] Async loaded replacement for '{originalClipName}' -> '{clip.name}'");
                 }
                 else
@@ -287,7 +287,7 @@ namespace IAmYourTranslator.HarmonyPatches
             _loadingPaths.Clear();
             InvalidateCache();
             
-            if (IsDebugLoggingEnabled())
+            if (IsMusicProfileLoggingEnabled())
                 Info("[MusicReplace] Cache cleared");
         }
 
@@ -309,7 +309,7 @@ namespace IAmYourTranslator.HarmonyPatches
                     clipName = replacement.name;
                 }
 
-                if (IsDebugLoggingEnabled())
+                if (IsMusicProfileLoggingEnabled())
                 {
                     Info($"[MusicLog] LevelMusicProfile.{methodName}() called | Profile='{profileName}' | Clip='{clipName}'");
                 }
@@ -351,7 +351,7 @@ namespace IAmYourTranslator.HarmonyPatches
         {
             try
             {
-                if (!IsDebugLoggingEnabled())
+                if (!IsMusicProfileLoggingEnabled())
                     return;
                 if (__instance == null)
                     return;

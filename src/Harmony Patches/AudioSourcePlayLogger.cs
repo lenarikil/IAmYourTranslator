@@ -1,10 +1,6 @@
 using System;
 using HarmonyLib;
 using UnityEngine;
-using BepInEx;
-using System.IO;
-using static IAmYourTranslator.CommonFunctions;
-using IAmYourTranslator.json;
 
 namespace IAmYourTranslator.HarmonyPatches
 {
@@ -14,11 +10,6 @@ namespace IAmYourTranslator.HarmonyPatches
         private static bool IsDebugLoggingEnabled()
         {
             return Plugin.EnableAudioDebugLogsEntry != null && Plugin.EnableAudioDebugLogsEntry.Value;
-        }
-
-        private static bool IsExperimentalRadioAudioEnabled()
-        {
-            return Plugin.EnableExperimentalRadioAudioPatchesEntry != null && Plugin.EnableExperimentalRadioAudioPatchesEntry.Value;
         }
 
         // === AudioSource.Play() ===
@@ -46,64 +37,6 @@ namespace IAmYourTranslator.HarmonyPatches
                 Logging.Error($"[AudioLog] Error while logging AudioSource.Play(): {e}");
             }
         }
-
-        // === AudioSource.Play() === // A more complex method of sound replacement if other methods couldn't be found. Used at your own risk.
-        [HarmonyPrefix]
-        [HarmonyPatch(typeof(AudioSource), nameof(AudioSource.Play), new Type[] { })]
-        static void Prefix_Play(AudioSource __instance)
-        {
-            try
-            {
-                if (!IsExperimentalRadioAudioEnabled())
-                    return;
-                if (__instance == null)
-                    return;
-                if (__instance.clip == null)
-                    return;
-
-                var go = __instance.gameObject;
-                string hierarchy = GetHierarchy(go, 3);
-
-                if (hierarchy == "Helmet Camera(Clone)")
-                {
-                    string dumpPath = Path.Combine(Paths.ConfigPath, "AudioDumps");
-                    //AudioClipRawExtractor.TryDumpRawAudioData(__instance.clip, dumpPath);
-                }
-                if (hierarchy == "Head Anchor → Enemy Radio Camera Pivot → Helmet Camera Bone → Helmet Camera(Clone)")
-                {
-                    string dumpPath = Path.Combine(Paths.ConfigPath, "AudioDumps");
-                    //AudioClipRawExtractor.TryDumpRawAudioData(__instance.clip, dumpPath);
-                }
-                
-                if (__instance.clip.name == "14 - same team" || __instance.clip.name == "iaybendcreditstest")
-                {
-                    if (Plugin.EnableAudioReplacementEntry.Value && LanguageManager.CurrentSummary != null)
-                    {
-                        string audioFile = Path.Combine(LanguageManager.CurrentSummary.Paths.AudioDir, __instance.clip.name + ".wav");
-                        AudioClip newClip = AudioClipReplacer.LoadAudioClip(audioFile);
-                        if (newClip != null)
-                        {
-                            Plugin.RegisterReplacedAudioSource(__instance, __instance.clip);
-                            __instance.clip = newClip;
-                            __instance.time = 0f;
-                            if (IsDebugLoggingEnabled())
-                                Logging.Info($"[AudioLog] AudioSource clip replaced with '{newClip.name}'");
-                        }
-                        else
-                        {
-                            if (IsDebugLoggingEnabled())
-                                Logging.Warn($"[AudioLog] Failed to load '{audioFile}' for AudioSource clip replacement");
-                        }
-                    }
-                }
-                //Logging.Info($"[AudioLog] AudioSource.Play() called | Clip='{clipName}' | Object: {hierarchy}");
-            }
-            catch (Exception e)
-            {
-                Logging.Error($"[AudioLog] Error while logging AudioSource.Play(): {e}");
-            }
-        }
-        
 
         // === AudioSource.Play(ulong delay) ===
         [HarmonyPostfix]

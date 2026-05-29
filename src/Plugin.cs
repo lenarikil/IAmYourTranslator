@@ -31,6 +31,7 @@ namespace IAmYourTranslator
         public static ConfigEntry<bool> EnableAudioReplacementEntry;
         public static ConfigEntry<bool> EnableTextureReplacementEntry;
         public static ConfigEntry<bool> EnableAudioDebugLogsEntry;
+        public static ConfigEntry<bool> EnableMusicProfileDebugLogsEntry;
         public static ConfigEntry<bool> EnableExperimentalRadioAudioPatchesEntry;
         public static PluginConfig ConfigEntries;
         private static readonly Dictionary<int, AudioClip> OriginalClipBySourceId = new Dictionary<int, AudioClip>();
@@ -629,6 +630,7 @@ namespace IAmYourTranslator
                 EnableAudioReplacementEntry = ConfigEntries.EnableAudioReplacement;
                 EnableTextureReplacementEntry = ConfigEntries.EnableTextureReplacement;
                 EnableAudioDebugLogsEntry = ConfigEntries.EnableAudioDebugLogs;
+                EnableMusicProfileDebugLogsEntry = ConfigEntries.EnableMusicProfileDebugLogs;
                 EnableExperimentalRadioAudioPatchesEntry = ConfigEntries.EnableExperimentalRadioAudioPatches;
 
                 TextSynchronizerPatch.SetCoroutineHost(this);
