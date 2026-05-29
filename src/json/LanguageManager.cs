@@ -7,8 +7,7 @@ using BepInEx;
 using BepInEx.Logging;
 using UnityEngine;
 using IAmYourTranslator;
-using IAmYourTranslator.Harmony_Patches;
-using IAmYourTranslator.HarmonyPatches;
+using IAmYourTranslator.Patches;
 
 namespace IAmYourTranslator.json
 {
@@ -23,9 +22,48 @@ namespace IAmYourTranslator.json
             public string FontsDir => Path.Combine(BaseDir, "fonts");
             public string TexturesDir => Path.Combine(BaseDir, "textures");
             public bool HasJson => File.Exists(JsonPath);
-            public bool HasAudio => Directory.Exists(AudioDir) && Directory.EnumerateFiles(AudioDir, "*.*", SearchOption.AllDirectories).Any();
-            public bool HasFonts => Directory.Exists(FontsDir) && Directory.EnumerateFiles(FontsDir, "*.*", SearchOption.AllDirectories).Any();
-            public bool HasTextures => Directory.Exists(TexturesDir) && Directory.EnumerateFiles(TexturesDir, "*.*", SearchOption.AllDirectories).Any();
+
+            // Lazy-cached: only scan directories when the property is first accessed
+            private bool? _hasAudio;
+            private bool? _hasFonts;
+            private bool? _hasTextures;
+
+            public bool HasAudio
+            {
+                get
+                {
+                    if (!_hasAudio.HasValue)
+                        _hasAudio = Directory.Exists(AudioDir) && Directory.EnumerateFiles(AudioDir, "*.*", SearchOption.AllDirectories).Any();
+                    return _hasAudio.Value;
+                }
+            }
+
+            public bool HasFonts
+            {
+                get
+                {
+                    if (!_hasFonts.HasValue)
+                        _hasFonts = Directory.Exists(FontsDir) && Directory.EnumerateFiles(FontsDir, "*.*", SearchOption.AllDirectories).Any();
+                    return _hasFonts.Value;
+                }
+            }
+
+            public bool HasTextures
+            {
+                get
+                {
+                    if (!_hasTextures.HasValue)
+                        _hasTextures = Directory.Exists(TexturesDir) && Directory.EnumerateFiles(TexturesDir, "*.*", SearchOption.AllDirectories).Any();
+                    return _hasTextures.Value;
+                }
+            }
+
+            public void InvalidateAssetCache()
+            {
+                _hasAudio = null;
+                _hasFonts = null;
+                _hasTextures = null;
+            }
         }
 
         public class LanguageSummary
@@ -73,6 +111,11 @@ namespace IAmYourTranslator.json
         private static DateTime _cacheTime;
         private static readonly TimeSpan LANGUAGES_CACHE_DURATION = TimeSpan.FromSeconds(5);
 
+        // Batching for SaveCurrentLanguage - avoid frequent I/O operations
+        private static bool _isDirty = false;
+        private static DateTime _lastSaveTime = DateTime.UtcNow;
+        private static readonly TimeSpan SAVE_BATCH_INTERVAL = TimeSpan.FromSeconds(2);
+
         public static IEnumerable<LanguageSummary> GetAvailableLanguages()
         {
             var now = DateTime.UtcNow;
@@ -108,6 +151,14 @@ namespace IAmYourTranslator.json
 
         public static void InvalidateLanguagesCache()
         {
+            // Invalidate lazy asset caches on existing summaries before discarding
+            if (_cachedLanguages != null)
+            {
+                foreach (var lang in _cachedLanguages)
+                {
+                    lang?.Paths?.InvalidateAssetCache();
+                }
+            }
             _cachedLanguages = null;
             _cacheTime = DateTime.MinValue;
         }
@@ -137,6 +188,20 @@ namespace IAmYourTranslator.json
                 return;
             }
 
+            // Mark as dirty instead of saving immediately - save will be batched
+            _isDirty = true;
+        }
+
+        /// <summary>
+        /// Force immediate save - used during plugin unload or emergency scenarios
+        /// </summary>
+        public static void SaveCurrentLanguageImmediate()
+        {
+            if (CurrentLanguage == null || string.IsNullOrEmpty(CurrentLanguageName))
+            {
+                return;
+            }
+
             try
             {
                 EnsureLanguagesDirectory();
@@ -146,12 +211,30 @@ namespace IAmYourTranslator.json
                 Directory.CreateDirectory(paths.BaseDir);
                 string json = JsonConvert.SerializeObject(CurrentLanguage, Formatting.Indented);
                 File.WriteAllText(paths.JsonPath, json);
-                Logging.Info($"[LanguageManager] Language '{CurrentLanguageName}' saved to {paths.JsonPath}");
+                Logging.Info($"[LanguageManager] Language '{CurrentLanguageName}' saved (immediate) to {paths.JsonPath}");
+                _isDirty = false;
+                _lastSaveTime = DateTime.UtcNow;
             }
             catch (Exception ex)
             {
                 Logging.Error($"[LanguageManager] Error saving language: {ex}");
             }
+        }
+
+        /// <summary>
+        /// Check if batched save is needed and perform if interval elapsed
+        /// Call this from Plugin.Update() every frame
+        /// </summary>
+        public static void ProcessBatchedSave()
+        {
+            if (!_isDirty)
+                return;
+
+            var now = DateTime.UtcNow;
+            if ((now - _lastSaveTime) < SAVE_BATCH_INTERVAL)
+                return;
+
+            SaveCurrentLanguageImmediate();
         }
         
         public static Dictionary<string, List<string>> GetTranslations()
@@ -192,10 +275,14 @@ namespace IAmYourTranslator.json
                 CommonFunctions.ClearAllCaches(clearReverseLookup: false, destroyTextureAssets: false);
                 ClearLanguageScopedPatchCaches();
                 InvalidateLanguagesCache();
+                
+                // Rebuild reverse lookup map for faster O(1) lookups instead of O(n) foreach
+                CommonFunctions.CaptureCurrentReverseLookupMap();
+                
                 RaiseLanguageLoaded(CurrentLanguageName);
 
                 // Re-apply language font immediately after successful load
-                Plugin.GetOrRecoverInstance()?.ApplyFontImmediateWithFallback();
+                Core.FontLifecycle.ApplyFontImmediateWithFallback();
                 return true;
             }
             catch (Exception ex)

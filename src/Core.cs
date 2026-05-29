@@ -4,7 +4,7 @@ using static IAmYourTranslator.CommonFunctions;
 
 namespace IAmYourTranslator
 {
-    public static class Core
+    public static class SceneCore
     {
         // Encapsulation function to patch all of the front end.
         public static void HandleSceneSwitch(Scene scene, ref GameObject canvas)
