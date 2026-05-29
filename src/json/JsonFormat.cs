@@ -15,6 +15,10 @@ namespace IAmYourTranslator.json
             public string minimumModVersion { get; set; }
             // Optional font file inside fonts/ folder of the language
             public string fontFile { get; set; }
+            // Optional text shown as an extra end-credits page before returning to the start screen.
+            public string langCredits { get; set; }
+            // Optional header for the language credits page (default: "Translator Credits")
+            public string langCreditsHeader { get; set; }
         }
 
         // General metadata used for UI and compatibility checks

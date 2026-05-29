@@ -5,7 +5,9 @@
     "langVersion": "1.0.0",
     "langDisplayName": "English",
     "minimumModVersion": "0.1.0",
-    "fontFile": ""
+    "fontFile": "",
+    "langCredits": "Translation: Sample",
+    "langCreditsHeader": "Translator Credits"
   },
   "timings": {},
   "settings": {}
