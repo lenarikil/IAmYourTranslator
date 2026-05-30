@@ -70,6 +70,9 @@ namespace IAmYourTranslator.Patches
                 if (string.IsNullOrEmpty(original))
                     return;
 
+                // Clear cached original text so the new hint's original text is used, not the previous one
+                ClearOriginalTextCache(display);
+
                 // Translate the current hint using the common method
                 TranslateTextAndSaveIfMissing(display, original, LanguageManager.CurrentLanguage.Hints, "[UIHintDisplay.RefreshHint]");
 

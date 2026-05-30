@@ -139,6 +139,9 @@ namespace IAmYourTranslator.Patches
             {
                 if (tmp == null) continue;
 
+                // ForceText may change the text on the same component; clear cached original
+                OriginalTextByComponent.Remove(tmp);
+
                 string originalText = ResolveOriginalText(tmp);
                 if (string.IsNullOrEmpty(originalText)) continue;
 

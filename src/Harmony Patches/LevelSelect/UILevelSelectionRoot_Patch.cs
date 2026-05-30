@@ -30,6 +30,7 @@ namespace IAmYourTranslator.Patches
                 }
 
                 string original = ResolveOriginalTranslationKey(tmp.text ?? string.Empty, dict);
+                ClearOriginalTextCache(tmp);
                 TranslateTextAndSaveIfMissing(tmp, original, dict, "[UILevelSelectionRoot_Patch]");
 
                 var font = TMPFontReplacer.GetCachedFont(Plugin.GlobalFontPath);
